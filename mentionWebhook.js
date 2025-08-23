@@ -37,19 +37,18 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
     
-    // 2. 削除コマンドの処理を優先（メンション・返信両方に対応）
-    if (body.includes("削除")) {
-        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
-        return res.sendStatus(200);
-    }
-    
-    // 3. スラッシュコマンドの処理
+    // 2. スラッシュコマンドの処理を優先
     const command = getCommand(body);
     if (command && commands[command]) {
-      // メンションの有無に関わらず、スラッシュコマンドに反応
       const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
       await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
+    }
+    
+    // 3. 削除コマンドの処理
+    if (body.includes("削除")) {
+        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
+        return res.sendStatus(200);
     }
 
     // 4. メンションの有無をチェック（コマンドではない通常のメンションにのみ反応）
