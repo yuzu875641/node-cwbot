@@ -19,8 +19,7 @@ const commands = {
   "help": async (message, roomId) => {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
-                        "削除 [rp to=...] : 指定したメッセージを削除\n" +
-                        "絵文字15個以上または［toall］ : 権限変更/注意メッセージ";
+                        "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   }
 };
@@ -36,7 +35,7 @@ const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-// 絵文字の数をカウントする関数（修正版）
+// 絵文字の数をカウントする関数
 const countEmojisAndCheckToall = (body) => {
   let emojiCount = 0;
   
@@ -49,7 +48,7 @@ const countEmojisAndCheckToall = (body) => {
     }
   }
 
-  // 2. Unicode絵文字をカウントする（より広範な絵文字に対応）
+  // 2. Unicode絵文字をカウントする
   const unicodeEmojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
   const unicodeMatches = body.match(unicodeEmojiRegex);
   if (unicodeMatches) {
