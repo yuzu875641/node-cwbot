@@ -9,7 +9,8 @@ const commands = {
   "help": async (message, roomId) => {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
-                        "/coin: コインを投げて結果を返します";
+                        "/coin: コインを投げて結果を返します\n" +
+                        "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
   "coin": async (message, roomId) => {
@@ -21,7 +22,7 @@ const commands = {
 
 // メッセージ本文からスラッシュコマンドを抽出する関数
 const getCommand = (body) => {
-  const match = body.match(/\/(.*?)(?:\s|$)/);
+  const match = body.match(/^\/(.*?)(?:\s|$)/);
   return match ? match[1] : null;
 };
 
@@ -36,19 +37,7 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
     
-    // 2. 削除コマンドの処理を優先（返信でのみ反応）
-    if (body.includes("[rp aid=") && body.includes("削除")) {
-        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
-        return res.sendStatus(200);
-    }
-    
-    // 3. メンションの有無をチェック
-    const isMentioned = body.includes(`[To:${BOT_ID}]`);
-    if (!isMentioned) {
-      return res.sendStatus(200);
-    }
-
-    // 4. コマンドの抽出と実行
+    // 2. スラッシュコマンドの処理を優先
     const command = getCommand(body);
     if (command && commands[command]) {
       const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
@@ -56,10 +45,20 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
 
-    // 5. どのコマンドにも該当しない場合のデフォルト応答
-    const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
-    await chatworkApi.sendchatwork(defaultResponse, roomId);
+    // 3. 削除コマンドの処理
+    if (body.includes("削除")) {
+        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
+        return res.sendStatus(200);
+    }
     
+    // 4. メンションの有無をチェック（コマンドではない通常のメンションにのみ反応）
+    const isMentioned = body.includes(`[To:${BOT_ID}]`);
+    if (isMentioned) {
+      const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
+      await chatworkApi.sendchatwork(defaultResponse, roomId);
+      return res.sendStatus(200);
+    }
+
     res.sendStatus(200);
     
   } catch (error) {
