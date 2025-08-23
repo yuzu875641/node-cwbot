@@ -1,5 +1,6 @@
 const axios = require('axios');
 const chatworkApi = require('./chatworkApi');
+const doujin = require('./doujin');
 
 // ボット自身のChatworkアカウントID
 const BOT_ID = 10617115;
@@ -10,6 +11,7 @@ const commands = {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "/coin: コインを投げて結果を返します\n" +
+                        "/search: 同人誌を検索します\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
@@ -17,6 +19,26 @@ const commands = {
     const coinResult = Math.random() < 0.5 ? "表" : "裏";
     const responseMessage = `コインを投げました。\n結果は【${coinResult}】です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
+  },
+  "search": async (body, roomId, messageId, accountId) => {
+    const query = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "").trim();
+    const results = await doujin.search(query);
+    if (!results || results.length === 0) {
+      await chatworkApi.sendchatwork("見つからなかったです。", roomId);
+      return;
+    }
+    const result = results[Math.floor(Math.random() * results.length)];
+    await chatworkApi.sendFile(roomId, result.image, `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nタイトル: ${result.title}`);
+  },
+  "doujin": async (body, roomId, messageId, accountId) => {
+    const url = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "").trim();
+    const result = await doujin.getDetails(url);
+    if (!result || result === 'error') {
+      await chatworkApi.sendchatwork("詳細情報の取得に失敗しました。", roomId);
+      return;
+    }
+    const message = `タイトル: ${result.title}\nページ数: ${result.pages}\n作者: ${result.authors}\nサークル: ${result.circle}`;
+    await chatworkApi.sendFile(roomId, result.imageUrls[0], `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${message}`);
   }
 };
 
@@ -36,22 +58,25 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
     
-    // 2. 削除コマンドの処理
+    // 2. スラッシュコマンドの処理を優先
+    const command = getCommand(body);
+    if (command && commands[command]) {
+      await commands[command](body, roomId, messageId, accountId);
+      return res.sendStatus(200);
+    }
+
+    // 3. 削除コマンドの処理
     if (body.includes("[rp aid=") && body.includes("削除")) {
         await chatworkApi.deleteMessages(body, roomId);
         return res.sendStatus(200);
     }
     
-    // 3. メンションの有無をチェック
+    // 4. メンションの有無をチェック（コマンドではない通常のメンションにのみ反応）
     const isMentioned = body.includes(`[To:${BOT_ID}]`);
-    
-    // 4. コマンドの抽出と実行
-    const command = getCommand(body);
-    if (command && commands[command]) {
-      await commands[command](body, roomId, messageId, accountId);
-    } else if (isMentioned) {
+    if (isMentioned) {
       const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
       await chatworkApi.sendchatwork(defaultResponse, roomId);
+      return res.sendStatus(200);
     }
 
     res.sendStatus(200);
