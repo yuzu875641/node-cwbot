@@ -4,7 +4,7 @@ const chatworkApi = require('./chatworkApi');
 // ボット自身のChatworkアカウントID
 const BOT_ID = 10617115;
 
-// Chatworkの絵文字一覧
+// Chatworkの絵文字一覧（独自の記法）
 const CHATWORK_EMOJIS = [
   ":)", ":(", ":D", "8-)", ":o", ";)", ":(", "(sweat)", ":|", ":*", ":p",
   "(blush)", ":^)", "|-)", "(inlove)", "]:)", "(talk)", "(yawn)", "(puke)",
@@ -20,7 +20,7 @@ const commands = {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除\n" +
-                        "絵文字15個以上または[toall] : 権限変更/注意メッセージ";
+                        "絵文字15個以上または［toall］ : 権限変更/注意メッセージ";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   }
 };
@@ -36,9 +36,11 @@ const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 };
 
-// 絵文字の数をカウントする関数
+// 絵文字の数をカウントする関数（修正版）
 const countEmojisAndCheckToall = (body) => {
   let emojiCount = 0;
+  
+  // 1. Chatwork独自の絵文字をカウント
   for (const emoji of CHATWORK_EMOJIS) {
     const regex = new RegExp(escapeRegExp(emoji), 'g');
     const matches = body.match(regex);
@@ -47,6 +49,14 @@ const countEmojisAndCheckToall = (body) => {
     }
   }
 
+  // 2. Unicode絵文字をカウントする（より広範な絵文字に対応）
+  const unicodeEmojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+  const unicodeMatches = body.match(unicodeEmojiRegex);
+  if (unicodeMatches) {
+    emojiCount += unicodeMatches.length;
+  }
+  
+  // 3. [toall]がある場合は、15個の絵文字があるものと見なす
   if (body.includes("[toall]")) {
     emojiCount = 15;
   }
@@ -77,12 +87,10 @@ async function mentionWebhook(req, res) {
       const member = membersResponse.data.find(m => m.account_id === accountId);
 
       if (member && member.role === 'admin') {
-        // 送信者が管理者なら注意喚起
         const responseMessage = `メッセージの絵文字が少し多いかもしれません💦`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
         return res.sendStatus(200);
       } else if (member && member.role === 'member') {
-        // 送信者がメンバーなら権限を閲覧に変更
         const updateRoleUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         await axios.put(updateRoleUrl, new URLSearchParams({
           members_admin: membersResponse.data.filter(m => m.role === 'admin').map(m => m.account_id),
