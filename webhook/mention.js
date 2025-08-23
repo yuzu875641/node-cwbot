@@ -8,7 +8,6 @@ const messageedit = require('../suisho/message');
 const CWinfoplay = require('../module/CWinfo');
 const wakameAI = require('../module/gemini');
 const jouchowakame = require('../module/joucho');
-const wakamemiaq = require('../module/miaq');
 const omikuji = require('../module/omikuji');
 const wakameSetUp = require('../module/setup');
 const wakametube = require('../module/wakametube');
