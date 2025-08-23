@@ -1,6 +1,5 @@
 const axios = require('axios');
 const chatworkApi = require('./chatworkApi');
-const doujin = require('./doujin');
 
 // ボット自身のChatworkアカウントID
 const BOT_ID = 10617115;
@@ -11,7 +10,6 @@ const commands = {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "/coin: コインを投げて結果を返します\n" +
-                        "/search: 同人誌を検索します\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
@@ -19,33 +17,12 @@ const commands = {
     const coinResult = Math.random() < 0.5 ? "表" : "裏";
     const responseMessage = `コインを投げました。\n結果は【${coinResult}】です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
-  },
-  "search": async (body, roomId, messageId, accountId) => {
-    const query = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "").trim();
-    const results = await doujin.search(query);
-    if (!results || results.length === 0) {
-      await chatworkApi.sendchatwork("見つからなかったです。", roomId);
-      return;
-    }
-    const result = results[Math.floor(Math.random() * results.length)];
-    await chatworkApi.sendFile(roomId, result.image, `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nタイトル: ${result.title}`);
-  },
-  "doujin": async (body, roomId, messageId, accountId) => {
-    const url = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "").trim();
-    const result = await doujin.getDetails(url);
-    if (!result || result === 'error') {
-      await chatworkApi.sendchatwork("詳細情報の取得に失敗しました。", roomId);
-      return;
-    }
-    const message = `タイトル: ${result.title}\nページ数: ${result.pages}\n作者: ${result.authors}\nサークル: ${result.circle}`;
-    await chatworkApi.sendFile(roomId, result.imageUrls[0], `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${message}`);
   }
 };
 
-// メッセージ本文からスラッシュコマンドを抽出する関数（修正版）
+// メッセージ本文からスラッシュコマンドを抽出する関数
 const getCommand = (body) => {
-  // メッセージのどこかにスラッシュコマンドがあれば抽出
-  const match = body.match(/\/(.*?)(?:\s|$)/);
+  const match = body.match(/^\/(.*?)(?:\s|$)/);
   return match ? match[1] : null;
 };
 
@@ -54,7 +31,7 @@ async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
     
-    // 1. 自分自身の投稿を無視
+    // 1. 自分自身の投稿を無視（無限ループ防止）
     if (accountId === BOT_ID) {
       return res.sendStatus(200);
     }
@@ -73,7 +50,6 @@ async function mentionWebhook(req, res) {
     if (command && commands[command]) {
       await commands[command](body, roomId, messageId, accountId);
     } else if (isMentioned) {
-      // コマンドではない通常のメンションにのみ反応
       const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
       await chatworkApi.sendchatwork(defaultResponse, roomId);
     }
