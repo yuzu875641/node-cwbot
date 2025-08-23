@@ -9,8 +9,7 @@ const commands = {
   "help": async (message, roomId) => {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
-                        "/coin: コインを投げて結果を返します\n" +
-                        "削除 [rp to=...] : 指定したメッセージを削除";
+                        "/coin: コインを投げて結果を返します";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
   "coin": async (message, roomId) => {
@@ -22,7 +21,7 @@ const commands = {
 
 // メッセージ本文からスラッシュコマンドを抽出する関数
 const getCommand = (body) => {
-  const match = body.match(/^\/(\w+)/);
+  const match = body.match(/\/(.*?)(?:\s|$)/);
   return match ? match[1] : null;
 };
 
@@ -37,8 +36,8 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
     
-    // 2. 削除コマンドの処理を優先（メンション・返信両方に対応）
-    if (body.includes("削除")) {
+    // 2. 削除コマンドの処理を優先（返信でのみ反応）
+    if (body.includes("[rp aid=") && body.includes("削除")) {
         await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
         return res.sendStatus(200);
     }
@@ -46,21 +45,19 @@ async function mentionWebhook(req, res) {
     // 3. メンションの有無をチェック
     const isMentioned = body.includes(`[To:${BOT_ID}]`);
     if (!isMentioned) {
-      // メンションがない場合は、ここで処理を終了
       return res.sendStatus(200);
     }
 
-    // 4. スラッシュコマンドの処理（メンションがある場合のみ）
+    // 4. コマンドの抽出と実行
     const command = getCommand(body);
     if (command && commands[command]) {
-      // コマンドに続くメッセージを抽出
       const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
       await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
     }
 
     // 5. どのコマンドにも該当しない場合のデフォルト応答
-    const defaultResponse = `こんにちは！`;
+    const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
     await chatworkApi.sendchatwork(defaultResponse, roomId);
     
     res.sendStatus(200);
