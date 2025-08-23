@@ -6,14 +6,14 @@ const BOT_ID = 10617115;
 
 // コマンドに対応する処理を定義するオブジェクト
 const commands = {
-  "/help": async (message, roomId) => {
+  "help": async (message, roomId) => {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "/coin: コインを投げて結果を返します\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
-  "/coin": async (message, roomId) => {
+  "coin": async (message, roomId) => {
     const coinResult = Math.random() < 0.5 ? "表" : "裏";
     const responseMessage = `コインを投げました。\n結果は【${coinResult}】です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
