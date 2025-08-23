@@ -2,7 +2,7 @@
 // メンションを受けた際の処理。
 // ============================
 
-const sccheck = require('../suisho/sccheck');
+
 const messageedit = require('../suisho/message');
 
 const CWinfoplay = require('../module/CWinfo');
