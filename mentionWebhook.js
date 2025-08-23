@@ -16,9 +16,7 @@ const commands = {
     await chatworkApi.sendchatwork(responseMessage, roomId);
   },
   "whomi": async (body, roomId, messageId, accountId) => {
-    // メンションがない場合の `accountId` に対応
-    const senderAccountId = accountId || '不明'; 
-    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのChatworkアカウントIDは ${senderAccountId} です。`;
+    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのChatworkアカウントIDは ${accountId} です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
   },
   "whois": async (body, roomId, messageId, accountId) => {
@@ -42,23 +40,32 @@ const getCommand = (body) => {
 // Webhookのメイン処理
 async function mentionWebhook(req, res) {
   try {
-    const { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
+    let { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
     
     // 1. 自分自身の投稿を無視（無限ループ防止）
     if (accountId === BOT_ID) {
       return res.sendStatus(200);
     }
+
+    // 2. メッセージ本文からアカウントIDを抽出
+    // メンションや返信がある場合、bodyからaccountIdを取得
+    if (!accountId) {
+      const accountIdMatch = body.match(/\[To:(\d+)\]|\[rp aid=(\d+)\]/);
+      if (accountIdMatch) {
+        accountId = accountIdMatch[1] || accountIdMatch[2];
+      }
+    }
     
-    // 2. 削除コマンドの処理
+    // 3. 削除コマンドの処理
     if (body.includes("[rp to=") && body.includes("削除")) {
         await chatworkApi.deleteMessages(body, roomId);
         return res.sendStatus(200);
     }
     
-    // 3. メンションの有無をチェック
+    // 4. メンションの有無をチェック
     const isMentioned = body.includes(`[To:${BOT_ID}]`);
     
-    // 4. コマンドの抽出と実行
+    // 5. コマンドの抽出と実行
     const command = getCommand(body);
     if (command && commands[command]) {
       await commands[command](body, roomId, messageId, accountId);
