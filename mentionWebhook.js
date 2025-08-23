@@ -59,7 +59,7 @@ async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, body } = req.body.webhook_event;
     
-    // 1. 自分自身の投稿を無視
+    // 1. 自分自身の投稿を無視（無限ループ防止）
     if (accountId === BOT_ID) {
       console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
@@ -77,13 +77,15 @@ async function mentionWebhook(req, res) {
       const member = membersResponse.data.find(m => m.account_id === accountId);
 
       if (member && member.role === 'admin') {
+        // 送信者が管理者なら注意喚起
         const responseMessage = `メッセージの絵文字が少し多いかもしれません💦`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
         return res.sendStatus(200);
       } else if (member && member.role === 'member') {
+        // 送信者がメンバーなら権限を閲覧に変更
         const updateRoleUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         await axios.put(updateRoleUrl, new URLSearchParams({
-          members_admin: membersResponse.data.filter(m => m.role === 'admin' && m.account_id !== accountId).map(m => m.account_id),
+          members_admin: membersResponse.data.filter(m => m.role === 'admin').map(m => m.account_id),
           members_member: membersResponse.data.filter(m => m.role === 'member' && m.account_id !== accountId).map(m => m.account_id),
           members_readonly: [...membersResponse.data.filter(m => m.role === 'readonly').map(m => m.account_id), accountId].join(',')
         }), {
