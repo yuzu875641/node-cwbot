@@ -1,17 +1,23 @@
 const express = require('express');
-const mentionWebhook = require('./mentionWebhook');
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const bodyParser = require('body-parser');
 
-app.use(express.json());
+const { mentionWebhook } = require('./mentionWebhook');
 
-// ChatworkのメンションWebhookを受け取るエンドポイント
-app.post("/webhook", (req, res) => {
-  mentionWebhook.mentionWebhook(req, res);
+// ポート番号の設定
+const port = process.env.PORT || 3000;
+
+app.use(bodyParser.json());
+
+// GASからのアクセス専用ルート
+// GET /webhookにアクセスがあった場合に200 OKを返す
+app.get('/webhook', (req, res) => {
+  res.status(200).send('Webhook is running');
 });
 
-// サーバーの起動
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// ChatworkからのWebhookイベントを受け付ける
+app.post('/mention', mentionWebhook);
+
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
 });
