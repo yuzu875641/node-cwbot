@@ -1,7 +1,10 @@
 const chatworkApi = require('./chatworkApi');
-const BOT_ID = 10617115; // ボット自身のID
 
-// コマンドに対応する処理を定義
+// ボット自身のChatworkアカウントID
+// ここにあなたのボットのID「10617115」を設定
+const BOT_ID = 10617115;
+
+// コマンドに対応する処理を定義するオブジェクト
 const commands = {
   "help": (message, roomId) => {
     // ヘルプコマンドの処理
@@ -25,6 +28,7 @@ async function mentionWebhook(req, res) {
     
     // 自分自身の投稿を無視
     if (accountId === BOT_ID) {
+      console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
     }
     
