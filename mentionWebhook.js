@@ -42,9 +42,10 @@ const commands = {
   }
 };
 
-// メッセージ本文からスラッシュコマンドを抽出する関数
+// メッセージ本文からスラッシュコマンドを抽出する関数（修正版）
 const getCommand = (body) => {
-  const match = body.match(/^\/(.*?)(?:\s|$)/);
+  // メッセージのどこかにスラッシュコマンドがあれば抽出
+  const match = body.match(/\/(.*?)(?:\s|$)/);
   return match ? match[1] : null;
 };
 
@@ -53,30 +54,28 @@ async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
     
-    // 1. 自分自身の投稿を無視（無限ループ防止）
+    // 1. 自分自身の投稿を無視
     if (accountId === BOT_ID) {
       return res.sendStatus(200);
     }
     
-    // 2. スラッシュコマンドの処理を優先
-    const command = getCommand(body);
-    if (command && commands[command]) {
-      await commands[command](body, roomId, messageId, accountId);
-      return res.sendStatus(200);
-    }
-
-    // 3. 削除コマンドの処理
+    // 2. 削除コマンドの処理
     if (body.includes("[rp aid=") && body.includes("削除")) {
         await chatworkApi.deleteMessages(body, roomId);
         return res.sendStatus(200);
     }
     
-    // 4. メンションの有無をチェック（コマンドではない通常のメンションにのみ反応）
+    // 3. メンションの有無をチェック
     const isMentioned = body.includes(`[To:${BOT_ID}]`);
-    if (isMentioned) {
+    
+    // 4. コマンドの抽出と実行
+    const command = getCommand(body);
+    if (command && commands[command]) {
+      await commands[command](body, roomId, messageId, accountId);
+    } else if (isMentioned) {
+      // コマンドではない通常のメンションにのみ反応
       const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
       await chatworkApi.sendchatwork(defaultResponse, roomId);
-      return res.sendStatus(200);
     }
 
     res.sendStatus(200);
