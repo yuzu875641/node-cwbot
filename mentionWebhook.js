@@ -37,28 +37,31 @@ async function mentionWebhook(req, res) {
       return res.sendStatus(200);
     }
     
-    // 2. スラッシュコマンドの処理を優先
+    // 2. 削除コマンドの処理を優先（メンション・返信両方に対応）
+    if (body.includes("削除")) {
+        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
+        return res.sendStatus(200);
+    }
+    
+    // 3. メンションの有無をチェック
+    const isMentioned = body.includes(`[To:${BOT_ID}]`);
+    if (!isMentioned) {
+      // メンションがない場合は、ここで処理を終了
+      return res.sendStatus(200);
+    }
+
+    // 4. スラッシュコマンドの処理（メンションがある場合のみ）
     const command = getCommand(body);
     if (command && commands[command]) {
       const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
       await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
     }
+
+    // 5. どのコマンドにも該当しない場合のデフォルト応答
+    const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
+    await chatworkApi.sendchatwork(defaultResponse, roomId);
     
-    // 3. 削除コマンドの処理
-    if (body.includes("削除")) {
-        await chatworkApi.deleteMessages(body, body, null, roomId, accountId);
-        return res.sendStatus(200);
-    }
-
-    // 4. メンションの有無をチェック（コマンドではない通常のメンションにのみ反応）
-    const isMentioned = body.includes(`[To:${BOT_ID}]`);
-    if (isMentioned) {
-      const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
-      await chatworkApi.sendchatwork(defaultResponse, roomId);
-      return res.sendStatus(200);
-    }
-
     res.sendStatus(200);
     
   } catch (error) {
