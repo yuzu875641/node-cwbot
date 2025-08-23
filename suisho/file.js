@@ -15,7 +15,6 @@ var randomIdlen = 30;
 var randomIdpattern = 'aA0'
 
 const messageedit = require('./message');
-const miaq = require('../src/miaq');
 
 //YouTube用
 async function sendFileyt(roomId, videoId, videoTitle) {
