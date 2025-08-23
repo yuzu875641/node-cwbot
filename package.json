@@ -1,0 +1,38 @@
+{
+  "name": "bot",
+  "version": "2.6.8",
+  "main": "index.js",
+  "license": "CC-BY-4.0",
+  "dependencies": {
+    "sharp": "^0.30.7",
+    "random-id": "^1.0.4",
+    "express": "^4.18.2",
+    "axios": "latest",
+    "body-parser": "^2.0.2",
+    "compression": "^1.7.4",
+    "makeitaquote": "^8.1.1",
+    "luxon": "^3.0.0",
+    "cheerio": "^0.22.0",
+    "ytsr": "latest",
+    "form-data": "^4.0.1",
+    "@supabase/supabase-js": "^2.48.0",
+    "miniget": "latest"
+  },
+  "description": "わかめ",
+  "engines": {
+    "node": "20.x"
+  },
+  "author": "wakame",
+  "private": false,
+  "bugs": {
+    "email": "23h11008@gmail.com"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "和布"
+  ]
+}
