@@ -25,42 +25,33 @@ async function mentionWebhook(req, res) {
     const { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
     
     // 1. 自分自身の投稿を無視
-    // 無限ループを防ぐため、一番最初にチェックします。
     if (accountId === BOT_ID) {
       console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
     }
     
-    // 2. メンションの有無をチェック
-    // これにより、メンションされた時だけボットが反応するようになります。
+    // 2. 削除コマンドの処理を優先
+    // 返信形式にも対応させるため、この条件を一番上に配置
+    if (body.includes("削除")) {
+        await chatworkApi.deleteMessages(body, body, messageId, roomId, accountId);
+        return res.sendStatus(200);
+    }
+
+    // 3. メンションの有無をチェック（削除コマンド以外）
     const isMentioned = body.includes(`[To:${BOT_ID}]`);
     if (!isMentioned) {
       return res.sendStatus(200);
     }
-
-    // 3. 返信を無視
-    // ボットへの返信（自動生成される [rp aid=...]）を無視します。
-    if (body.includes(`[rp aid=${BOT_ID}]`)) {
-      return res.sendStatus(200);
-    }
-
-    // 4. メッセージから不要な部分を削除してクリーンなメッセージを取得
-    const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
-
-    // 5. 削除コマンドの処理
-    if (body.includes("削除")) {
-        await chatworkApi.deleteMessages(body, cleanMessage, messageId, roomId, accountId);
-        return res.sendStatus(200);
-    }
     
-    // 6. スラッシュコマンドの処理
+    // 4. スラッシュコマンドの処理
     const command = getCommand(body);
     if (command && commands[command]) {
+      const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
       await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
     }
 
-    // 7. どのコマンドにも該当しない場合のデフォルトの応答
+    // 5. どのコマンドにも該当しない場合のデフォルトの応答
     const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
     await chatworkApi.sendchatwork(defaultResponse, roomId);
 
