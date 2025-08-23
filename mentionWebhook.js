@@ -6,14 +6,14 @@ const BOT_ID = 10617115;
 
 // コマンドに対応する処理を定義するオブジェクト
 const commands = {
-  "help": async (message, roomId) => {
+  "/help": async (message, roomId) => {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "/coin: コインを投げて結果を返します\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
-  "coin": async (message, roomId) => {
+  "/coin": async (message, roomId) => {
     const coinResult = Math.random() < 0.5 ? "表" : "裏";
     const responseMessage = `コインを投げました。\n結果は【${coinResult}】です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
@@ -53,13 +53,14 @@ async function mentionWebhook(req, res) {
     // 4. スラッシュコマンドの処理（メンションがある場合のみ）
     const command = getCommand(body);
     if (command && commands[command]) {
+      // コマンドに続くメッセージを抽出
       const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
       await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
     }
 
     // 5. どのコマンドにも該当しない場合のデフォルト応答
-    const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
+    const defaultResponse = `こんにちは！`;
     await chatworkApi.sendchatwork(defaultResponse, roomId);
     
     res.sendStatus(200);
