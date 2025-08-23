@@ -1,8 +1,7 @@
 const axios = require('axios');
 const chatworkApi = require('./chatworkApi');
 const doujin = require('./doujin');
-const wakameAI = require('./wakameAI');
-const omikuji = require('./omikuji');
+
 
 // ボット自身のChatworkアカウントID
 const BOT_ID = 10617115;
