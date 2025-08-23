@@ -13,7 +13,6 @@ const commands = {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "/coin: コインを投げて結果を返します\n" +
-                        "/search: 同人誌を検索します\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
@@ -84,7 +83,7 @@ async function mentionWebhook(req, res) {
     res.sendStatus(200);
     
   } catch (error) {
-    console.error('Error processing webhook:', error.response?.data || error.message);
+    console.error('Webhook処理エラー:', error.response?.data || error.message || error);
     res.sendStatus(500);
   }
 }
