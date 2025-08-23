@@ -20,24 +20,24 @@ const commands = {
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除\n" +
-                        "[toall] または絵文字15個以上 : メッセージを監視してアクションを実行";
+                        "絵文字15個以上または[toall] : 権限変更/注意メッセージ";
     await chatworkApi.sendchatwork(helpMessage, roomId);
   }
 };
 
 // メッセージ本文からスラッシュコマンドを抽出する関数
-function getCommand(body) {
+function getCommand = (body) => {
   const match = body.match(/^\/(\w+)/);
   return match ? match[1] : null;
-}
+};
 
 // 正規表現で特殊文字をエスケープするヘルパー関数
-function escapeRegExp(string) {
+const escapeRegExp = (string) => {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+};
 
 // 絵文字の数をカウントする関数
-function countEmojisAndCheckToall(body) {
+const countEmojisAndCheckToall = (body) => {
   let emojiCount = 0;
   for (const emoji of CHATWORK_EMOJIS) {
     const regex = new RegExp(escapeRegExp(emoji), 'g');
@@ -52,14 +52,14 @@ function countEmojisAndCheckToall(body) {
   }
   
   return emojiCount;
-}
+};
 
 // Webhookのメイン処理
 async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, body } = req.body.webhook_event;
     
-    // 1. 自分自身の投稿を無視
+    // 1. 自分自身の投稿を無視（無限ループ防止）
     if (accountId === BOT_ID) {
       console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
@@ -79,6 +79,7 @@ async function mentionWebhook(req, res) {
       if (member && member.role === 'admin') {
         const responseMessage = `メッセージの絵文字が少し多いかもしれません💦`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
+        return res.sendStatus(200); // 処理が完了したら終了
       } else if (member && member.role === 'member') {
         const updateRoleUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         await axios.put(updateRoleUrl, new URLSearchParams({
@@ -90,6 +91,7 @@ async function mentionWebhook(req, res) {
         });
         const responseMessage = `絵文字が多すぎるため、${member.name}さんの権限を閲覧に変更しました。`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
+        return res.sendStatus(200); // 処理が完了したら終了
       }
     }
 
