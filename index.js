@@ -1,48 +1,29 @@
-"use strict";
-const express = require("express");
+// index.js
+const express = require('express');
 const app = express();
-const path = require('path');
+const chatwork = require('./module/CWinfo');
+const mentionHandler = require('./webhook/mention');
 
-const mentionWebhook = require('./webhook/mention');
-const makeitaquote = require('./src/miaq');
-const getchat = require('./webhook/webhook');
-const wakajiho = require('./webhook/jihou');
-const wakajihohook = require('./webhook/jihouwebhook');
+// ポートはRenderの環境変数から取得
+const PORT = process.env.PORT || 3000;
 
-const port = process.env.PORT || 3000;
-
-app.use(express.static('public'));
+// JSONリクエストボディをパース
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-app.get('/', (req, res) => {
-  res.end(JSON.stringify(process.versions, null, 2));
+// WebhookのURLを設定
+app.post('/webhook', (req, res) => {
+    // Chatworkから送信されたWebhookのデータを処理
+    const data = req.body;
+    
+    // メンションメッセージの場合、mention.jsのハンドラーを呼び出す
+    if (data.webhook_event_type === 'mention') {
+        mentionHandler.handleMention(data);
+    }
+    
+    res.status(200).send('OK');
 });
 
-app.post("/webhook", (req, res) => {
-  mentionWebhook.mentionWebhook(req, res);
+// サーバーを起動
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
-
-app.post("/getchat", (req, res) => {
-  getchat(req, res);
-});
-
-app.get('/pp', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'miaq.html'));
-});          
-
-app.all("/generate", (req, res) => {
-  makeitaquote.makeitaquote(req, res);
-});
-
-app.post("/jiho", (req, res) => {
-  wakajiho.jihou(req, res);
-});
-
-app.post("/jihowebhook", (req, res) => {
-  wakajihohook.mentionWebhook(req, res);
-});
-
-app.listen(port, () => {
-  console.log(`listening on port ${port}`)
-})
