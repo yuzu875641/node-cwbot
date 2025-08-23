@@ -16,7 +16,9 @@ const commands = {
     await chatworkApi.sendchatwork(responseMessage, roomId);
   },
   "whomi": async (body, roomId, messageId, accountId) => {
-    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのChatworkアカウントIDは ${accountId} です。`;
+    // メンションがない場合の `accountId` に対応
+    const senderAccountId = accountId || '不明'; 
+    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのChatworkアカウントIDは ${senderAccountId} です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
   },
   "whois": async (body, roomId, messageId, accountId) => {
