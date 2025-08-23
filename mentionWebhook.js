@@ -7,16 +7,27 @@ const BOT_ID = 10617115;
 // コマンドに対応する処理を定義するオブジェクト
 const commands = {
   "help": async (body, roomId, messageId, accountId) => {
-    const helpMessage = "利用可能なコマンド:\n" +
-                        "/help: このヘルプを表示\n" +
-                        "/coin: コインを投げて結果を返します\n" +
-                        "削除 [rp to=...] : 指定したメッセージを削除";
+    const helpMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n利用可能なコマンド:\n/help: このヘルプを表示\n/coin: コインを投げて結果を返します\n/whomi: あなたの情報を表示します\n/whois [rp to=...]: 返信した相手の情報を表示します\n削除 [rp to=...] : 指定したメッセージを削除`;
     await chatworkApi.sendchatwork(helpMessage, roomId);
   },
   "coin": async (body, roomId, messageId, accountId) => {
     const coinResult = Math.random() < 0.5 ? "表" : "裏";
-    const responseMessage = `コインを投げました。\n結果は【${coinResult}】です。`;
+    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nコインを投げました。\n結果は【${coinResult}】です。`;
     await chatworkApi.sendchatwork(responseMessage, roomId);
+  },
+  "whomi": async (body, roomId, messageId, accountId) => {
+    const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのChatworkアカウントIDは ${accountId} です。`;
+    await chatworkApi.sendchatwork(responseMessage, roomId);
+  },
+  "whois": async (body, roomId, messageId, accountId) => {
+    const repliedAccountId = chatworkApi.getRepliedAccountId(body);
+    if (repliedAccountId) {
+      const responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n返信相手のChatworkアカウントIDは ${repliedAccountId} です。`;
+      await chatworkApi.sendchatwork(responseMessage, roomId);
+    } else {
+      const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nコマンドの使い方が間違っています。\n/whois の後に返信メッセージを続けてください。`;
+      await chatworkApi.sendchatwork(errorMessage, roomId);
+    }
   }
 };
 
@@ -37,7 +48,7 @@ async function mentionWebhook(req, res) {
     }
     
     // 2. 削除コマンドの処理
-    if (body.includes("[rp aid=") && body.includes("削除")) {
+    if (body.includes("[rp to=") && body.includes("削除")) {
         await chatworkApi.deleteMessages(body, roomId);
         return res.sendStatus(200);
     }
@@ -50,7 +61,7 @@ async function mentionWebhook(req, res) {
     if (command && commands[command]) {
       await commands[command](body, roomId, messageId, accountId);
     } else if (isMentioned) {
-      const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
+      const defaultResponse = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nこんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
       await chatworkApi.sendchatwork(defaultResponse, roomId);
     }
 
