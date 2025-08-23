@@ -20,7 +20,6 @@ const urlFile = require('../module/plusfile');
 const jihouchan = require('../webhook/jihou');
 const doujin = require('../jihou/h');
 
-const restartok = require('../server/restart');
 
 //コマンドリスト
 const commands = {
