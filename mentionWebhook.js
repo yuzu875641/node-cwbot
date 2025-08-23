@@ -26,7 +26,7 @@ const commands = {
 };
 
 // メッセージ本文からスラッシュコマンドを抽出する関数
-function getCommand = (body) => {
+const getCommand = (body) => {
   const match = body.match(/^\/(\w+)/);
   return match ? match[1] : null;
 };
@@ -59,7 +59,7 @@ async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, body } = req.body.webhook_event;
     
-    // 1. 自分自身の投稿を無視（無限ループ防止）
+    // 1. 自分自身の投稿を無視
     if (accountId === BOT_ID) {
       console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
@@ -79,7 +79,7 @@ async function mentionWebhook(req, res) {
       if (member && member.role === 'admin') {
         const responseMessage = `メッセージの絵文字が少し多いかもしれません💦`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
-        return res.sendStatus(200); // 処理が完了したら終了
+        return res.sendStatus(200);
       } else if (member && member.role === 'member') {
         const updateRoleUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         await axios.put(updateRoleUrl, new URLSearchParams({
@@ -91,7 +91,7 @@ async function mentionWebhook(req, res) {
         });
         const responseMessage = `絵文字が多すぎるため、${member.name}さんの権限を閲覧に変更しました。`;
         await chatworkApi.sendchatwork(responseMessage, roomId);
-        return res.sendStatus(200); // 処理が完了したら終了
+        return res.sendStatus(200);
       }
     }
 
