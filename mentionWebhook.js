@@ -1,13 +1,11 @@
 const chatworkApi = require('./chatworkApi');
 
 // ボット自身のChatworkアカウントID
-// ここにあなたのボットのID「10617115」を設定
 const BOT_ID = 10617115;
 
 // コマンドに対応する処理を定義するオブジェクト
 const commands = {
   "help": (message, roomId) => {
-    // ヘルプコマンドの処理
     const helpMessage = "利用可能なコマンド:\n" +
                         "/help: このヘルプを表示\n" +
                         "削除 [rp to=...] : 指定したメッセージを削除";
@@ -15,7 +13,7 @@ const commands = {
   }
 };
 
-// メッセージ本文からコマンドを抽出する関数
+// メッセージ本文からスラッシュコマンドを抽出する関数
 function getCommand(body) {
   const match = body.match(/^\/(\w+)/);
   return match ? match[1] : null;
@@ -26,34 +24,43 @@ async function mentionWebhook(req, res) {
   try {
     const { from_account_id: accountId, room_id: roomId, message_id: messageId, body } = req.body.webhook_event;
     
-    // 自分自身の投稿を無視
+    // 1. 自分自身の投稿を無視
+    // 無限ループを防ぐため、一番最初にチェックします。
     if (accountId === BOT_ID) {
       console.log("無視: 自分自身の投稿です。");
       return res.sendStatus(200);
     }
     
-    // 返信を無視
-    if (body.includes("[rp aid=10617115]")) {
+    // 2. メンションの有無をチェック
+    // これにより、メンションされた時だけボットが反応するようになります。
+    const isMentioned = body.includes(`[To:${BOT_ID}]`);
+    if (!isMentioned) {
       return res.sendStatus(200);
     }
 
-    // メッセージからメンション部分やコマンドを削除してクリーンなメッセージを取得
-    const message = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
+    // 3. 返信を無視
+    // ボットへの返信（自動生成される [rp aid=...]）を無視します。
+    if (body.includes(`[rp aid=${BOT_ID}]`)) {
+      return res.sendStatus(200);
+    }
 
-    // 削除コマンドの処理
+    // 4. メッセージから不要な部分を削除してクリーンなメッセージを取得
+    const cleanMessage = body.replace(/\[To:\d+\].*?|\/.*?\/|\s+/g, "");
+
+    // 5. 削除コマンドの処理
     if (body.includes("削除")) {
-        await chatworkApi.deleteMessages(body, message, messageId, roomId, accountId);
+        await chatworkApi.deleteMessages(body, cleanMessage, messageId, roomId, accountId);
         return res.sendStatus(200);
     }
     
-    // スラッシュコマンドの処理
+    // 6. スラッシュコマンドの処理
     const command = getCommand(body);
     if (command && commands[command]) {
-      await commands[command](message, roomId);
+      await commands[command](cleanMessage, roomId);
       return res.sendStatus(200);
     }
 
-    // デフォルトの応答
+    // 7. どのコマンドにも該当しない場合のデフォルトの応答
     const defaultResponse = `こんにちは！メンションありがとうございます。\n「/help」と入力すると、利用可能なコマンドが表示されます。`;
     await chatworkApi.sendchatwork(defaultResponse, roomId);
 
