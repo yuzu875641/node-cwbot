@@ -226,11 +226,11 @@ app.post('/webhook', async (req, res) => {
                 return res.status(200).send('Unauthorized user for restart.');
             }
             if (!RESTART_WEBHOOK_URL) {
-                const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nRender再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nRender再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('Restart URL not configured.');
             }
-            const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nBotを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nBotを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
             await sendchatwork(replyMessage, roomId);
             await axios.post(RESTART_WEBHOOK_URL);
             return res.status(200).send('Restarting...');
