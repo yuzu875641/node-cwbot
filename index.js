@@ -39,49 +39,11 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID) {
     }
 }
 
-// メッセージを削除する関数 (未使用 - 新しいロジックに置き換えられました)
-async function deleteMessages(body, roomId, accountId, messageId) {
-    // この関数は新しい「削除」ロジックで直接処理されるため、
-    // ここでは使われていませんが、参考として残しておきます。
-    const dlmessageIds = [...body.matchAll(/(?<=to=\d+-)(\d+)/g)].map(match => match[1]);
-
-    if (dlmessageIds.length === 0) {
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n削除対象のメッセージIDが見つかりませんでした。`;
-        await sendchatwork(replyMessage, roomId);
-        return;
-    }
-
-    let deletedCount = 0;
-    let failedIds = [];
-
-    for (const id of dlmessageIds) {
-        const url = `https://api.chatwork.com/v2/rooms/${roomId}/messages/${id}`;
-        try {
-            await axios.delete(url, {
-                headers: {
-                    'Accept': 'application/json',
-                    'x-chatworktoken': CHATWORK_API_TOKEN,
-                }
-            });
-            deletedCount++;
-        } catch (err) {
-            console.error(`メッセージID ${id} の削除中にエラーが発生しました:`, err.response ? err.response.data : err.message);
-            failedIds.push(id);
-        }
-    }
-
-    let replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n**${deletedCount}**件のメッセージを削除しました。`;
-    if (failedIds.length > 0) {
-        replyMessage += `\n以下のメッセージは削除に失敗しました: ${failedIds.join(', ')}`;
-    }
-    await sendchatwork(replyMessage, roomId);
-}
-
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
         message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下で返答して下さい:" + message;
-        
+
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
@@ -105,7 +67,7 @@ async function generateGemini(body, message, messageId, roomId, accountId) {
         const responseContent = response.data.candidates[0].content;
         let responseParts = responseContent.parts.map((part) => part.text).join("\n");
         responseParts = responseParts.replace(/\*/g, ""); // アスタリスクを削除
-        
+
         await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nゆずbotです。\n${responseParts}`, roomId);
     } catch (error) {
         console.error('エラーが発生しました:', error.response ? error.response.data : error.message);
@@ -183,17 +145,6 @@ async function get() {
     console.error('Supabase get error:', error);
     return null;
   }
-}
-
-// 指定した過去の統計データを取得する関数
-async function gget(num) {
-  const { data, error } = await supabase
-    .from('tops')
-    .select('list, time, day')
-    .order('id', { ascending: false })
-    .offset(num)
-    .limit(1);
-  return data;
 }
 
 // メッセージ数の差分を計算する関数
@@ -322,20 +273,65 @@ app.post('/webhook', async (req, res) => {
         const accountId = webhookEvent.account_id;
         const roomId = webhookEvent.room_id;
         const messageId = webhookEvent.message_id;
-        
+
         if (!body || !accountId || !roomId || !messageId) {
             console.error('Webhook event is missing required parameters (body, accountId, roomId, or messageId).');
             return res.status(400).send('Missing webhook parameters.');
         }
 
-        // ボット自身の投稿を無視
+        // --- コマンド処理を先に行う ---
+        const trimmedBody = body.trim();
+        const bodyParts = trimmedBody.split(/\s+/);
+
+        // 削除コマンド (ゆずbotへの返信かつ「削除」のみの場合)
+        if (body.includes(`[rp aid=${YUZUBOT_ACCOUNT_ID}]`) && trimmedBody.endsWith("削除")) {
+            const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+
+            try {
+                const currentMembersResponse = await axios.get(`https://api.chatwork.com/v2/rooms/${roomId}/members`, { headers });
+                const currentMembers = currentMembersResponse.data;
+                const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
+
+                if (!adminIds.includes(accountId)) {
+                    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nこのコマンドは管理者のみ実行できます。`;
+                    await sendchatwork(replyMessage, roomId);
+                    return res.status(200).send('Unauthorized for delete command.');
+                }
+
+                const match = body.match(/to=(\d+)-(\d+)/);
+                if (!match) {
+                    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n削除対象のメッセージIDが見つかりませんでした。`;
+                    await sendchatwork(replyMessage, roomId);
+                    return res.status(200).send('No message ID found.');
+                }
+
+                const deleteRoomId = match[1];
+                const deleteMessageId = match[2];
+
+                const url = `https://api.chatwork.com/v2/rooms/${deleteRoomId}/messages/${deleteMessageId}`;
+                await axios.delete(url, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'x-chatworktoken': CHATWORK_API_TOKEN,
+                    }
+                });
+
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nメッセージID **${deleteMessageId}** を削除しました。`;
+                await sendchatwork(replyMessage, roomId);
+                return res.status(200).send('Delete command executed.');
+
+            } catch (err) {
+                console.error(`メッセージID ${deleteMessageId} の削除中にエラーが発生しました:`, err.response ? err.response.data : err.message);
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nメッセージの削除に失敗しました。`;
+                await sendchatwork(replyMessage, roomId);
+                return res.status(500).send('Delete failed.');
+            }
+        }
+
+        // ボット自身の投稿を無視 (削除コマンドの後に移動)
         if (body.startsWith(`[rp aid=${YUZUBOT_ACCOUNT_ID}]`) || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
         }
-        
-        // --- コマンド処理 ---
-        const trimmedBody = body.trim();
-        const bodyParts = trimmedBody.split(/\s+/);
 
         // おみくじ コマンド
         if (trimmedBody === 'おみくじ') {
@@ -347,13 +343,13 @@ app.post('/webhook', async (req, res) => {
                 .eq('date', today);
             
             if (error) {
-                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nおみくじの履歴取得中にエラーが発生しました。`;
+                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nおみくじの履歴取得中にエラーが発生しました。`;
                 await sendchatwork(errorMessage, roomId);
                 return res.status(500).send('Supabase Error');
             }
 
             if (data && data.length > 0) {
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじは既に引きました。明日また引けます。`;
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n本日のおみくじは既に引きました。明日また引けます。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('Already pulled today.');
             }
@@ -365,12 +361,12 @@ app.post('/webhook', async (req, res) => {
                 .insert([{ account_id: accountId, date: today, fortune: result }]);
 
             if (insertError) {
-                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nおみくじの履歴保存中にエラーが発生しました。`;
+                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nおみくじの履歴保存中にエラーが発生しました。`;
                 await sendchatwork(errorMessage, roomId);
                 return res.status(500).send('Supabase Insert Error');
             }
             
-            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじの結果は「**${result}**」です。🎉`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n本日のおみくじの結果は「**${result}**」です。🎉`;
             await sendchatwork(replyMessage, roomId);
             return res.status(200).send('Fortune OK');
         }
@@ -379,7 +375,7 @@ app.post('/webhook', async (req, res) => {
         if (trimmedBody.startsWith('/ai')) {
             const query = trimmedBody.substring(4).trim();
             if (query.length === 0) {
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n聞きたいことを入力してください。`;
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n聞きたいことを入力してください。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('No query provided.');
             }
@@ -425,50 +421,6 @@ app.post('/webhook', async (req, res) => {
         if (trimmedBody === '/stat' || trimmedBody === '/saving') {
             await saving(body, null, messageId, roomId, accountId);
             return res.status(200).send('Saving command executed.');
-        }
-
-        // 削除コマンド (ゆずbotへの返信かつ「削除」のみの場合)
-        if (body.includes(`[rp aid=${YUZUBOT_ACCOUNT_ID}]`) && trimmedBody.endsWith("削除")) {
-            const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-            const membersUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
-            
-            try {
-                const currentMembersResponse = await axios.get(membersUrl, { headers });
-                const currentMembers = currentMembersResponse.data;
-                const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
-
-                if (!adminIds.includes(accountId)) {
-                    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nこのコマンドは管理者のみ実行できます。`;
-                    await sendchatwork(replyMessage, roomId);
-                    return res.status(200).send('Unauthorized for delete command.');
-                }
-
-                // 返信元のメッセージIDを特定
-                const replyToMessageId = body.match(/to=\d+-(\d+)/)?.[1];
-                if (!replyToMessageId) {
-                    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n削除対象のメッセージIDが見つかりませんでした。`;
-                    await sendchatwork(replyMessage, roomId);
-                    return res.status(200).send('No message ID found.');
-                }
-
-                const url = `https://api.chatwork.com/v2/rooms/${roomId}/messages/${replyToMessageId}`;
-                await axios.delete(url, {
-                    headers: {
-                        'Accept': 'application/json',
-                        'x-chatworktoken': CHATWORK_API_TOKEN,
-                    }
-                });
-
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nメッセージID **${replyToMessageId}** を削除しました。`;
-                await sendchatwork(replyMessage, roomId);
-                return res.status(200).send('Delete command executed.');
-
-            } catch (err) {
-                console.error(`メッセージID ${replyToMessageId} の削除中にエラーが発生しました:`, err.response ? err.response.data : err.message);
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nメッセージの削除に失敗しました。`;
-                await sendchatwork(replyMessage, roomId);
-                return res.status(500).send('Delete failed.');
-            }
         }
 
         res.status(200).send('OK');
