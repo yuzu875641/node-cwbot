@@ -4,24 +4,32 @@ const app = express();
 const { URLSearchParams } = require('url');
 const { createClient } = require('@supabase/supabase-js');
 const { DateTime } = require('luxon');
+require('dotenv').config();
 
 app.use(express.json());
 
 // 環境変数から各種APIトークンとURLを取得
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
+const CHATWORK_API_BASE = 'https://api.chatwork.com/v2';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const YUZUBOT_ACCOUNT_ID = process.env.YUZUBOT_ACCOUNT_ID;
 
 // ランキングから除外するルームIDのリスト
-const EXCLUDED_ROOMS = ['407802259', '407755388'];
+const EXCLUDED_ROOMS = ['407802259', /* 他に除外したいIDがあればここに追加 */];
 
 // Supabaseクライアントの初期化
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // おみくじの結果リスト
 const fortunes = ['大吉', '吉', '中吉', '小吉', '末吉', '凶', '大凶'];
+
+// 現在の日付を取得 (YYYY-MM-DD形式)
+function getToday() {
+    const japanTime = DateTime.now().setZone('Asia/Tokyo');
+    return japanTime.toFormat('yyyy-MM-dd');
+}
 
 // チャットワークへメッセージを送信する関数
 async function sendchatwork(ms, CHATWORK_ROOM_ID) {
@@ -45,7 +53,7 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID) {
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
-        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下、markdown形式を使用しないで返答して下さい:" + message;
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下で返答して下さい:" + message;
 
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -268,6 +276,113 @@ async function topFile(body, message, messageId, roomId, accountId) {
   await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
 }
 
+// データをSupabaseに保存または更新（/rmrコマンド用）
+async function updateRanking(roomId, accountId) {
+    try {
+        const today = getToday();
+        const { data, error } = await supabase
+            .from('ranking_data')
+            .select('*')
+            .eq('room_id', roomId)
+            .eq('account_id', accountId)
+            .eq('date', today);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            // データが存在する場合、カウントをインクリメント
+            const currentCount = data[0].count;
+            const { error: updateError } = await supabase
+                .from('ranking_data')
+                .update({ count: currentCount + 1 })
+                .eq('room_id', roomId)
+                .eq('account_id', accountId)
+                .eq('date', today);
+            if (updateError) throw updateError;
+        } else {
+            // データが存在しない場合、新規挿入
+            const { error: insertError } = await supabase
+                .from('ranking_data')
+                .insert([{ room_id: roomId, account_id: accountId, count: 1, date: today }]);
+            if (insertError) throw insertError;
+        }
+    } catch (error) {
+        console.error('Supabase update/insert error:', error.message);
+    }
+}
+
+// ランキングデータをSupabaseから取得（/rmrコマンド用）
+async function getRanking(roomId) {
+    const today = getToday();
+    const { data, error } = await supabase
+        .from('ranking_data')
+        .select('account_id, count')
+        .eq('room_id', roomId)
+        .eq('date', today)
+        .order('count', { ascending: false });
+
+    if (error) {
+        console.error('Supabase get error:', error);
+        return null;
+    }
+    return data;
+}
+
+// アカウントIDから名前を取得する（キャッシュ付き）
+async function getAccountName(accountId) {
+    try {
+        // キャッシュから取得
+        const { data: cacheData, error: cacheError } = await supabase
+            .from('pname_cache')
+            .select('account_name')
+            .eq('account_id', accountId)
+            .single();
+
+        if (cacheData) {
+            return cacheData.account_name;
+        }
+
+        // キャッシュにない場合、Chatwork APIから取得し、キャッシュに保存
+        const response = await axios.get(`${CHATWORK_API_BASE}/contacts`, {
+            headers: { 'X-ChatWorkToken': CHATWORK_API_TOKEN },
+        });
+        const contacts = response.data;
+        const contact = contacts.find(c => c.account_id.toString() === accountId);
+
+        if (contact) {
+            await supabase.from('pname_cache').insert([{ account_id: accountId, account_name: contact.name }]);
+            return contact.name;
+        } else {
+            return `アカウントID:${accountId}`;
+        }
+    } catch (error) {
+        console.error('Failed to get account name:', error.message);
+        return `アカウントID:${accountId}`;
+    }
+}
+
+// ランキングをフォーマット（/rmrコマンド用）
+async function formatRanking(ranking, senderAccountId, targetRoomId, messageId) {
+    if (!ranking || ranking.length === 0) {
+        return `[rp aid=${senderAccountId} to=${targetRoomId}-${messageId}]\n本日のランキングはまだありません。`;
+    }
+
+    let total = 0;
+    let result = `[rp aid=${senderAccountId} to=${targetRoomId}-${messageId}][pname:${senderAccountId}]さん\n`;
+    result += '[info][title]本日のコメント数ランキング[/title]\n';
+
+    for (let i = 0; i < ranking.length; i++) {
+        const item = ranking[i];
+        const accountName = await getAccountName(item.account_id);
+        result += `${i + 1}位 [pname:${accountName}]さん - ${item.count} コメント\n`;
+        total += item.count;
+    }
+
+    result += `[hr]合計コメント数: ${total} 件\n`;
+    result += '[/info]';
+
+    return result;
+}
 
 // Webhookエンドポイント
 app.post('/webhook', async (req, res) => {
@@ -292,6 +407,22 @@ app.post('/webhook', async (req, res) => {
         const trimmedBody = body.trim();
         const bodyParts = trimmedBody.split(/\s+/);
 
+        // /rmr [roomId] コマンドの処理
+        const rmrMatch = trimmedBody.match(/^\/rmr\s+(\d+)$/);
+        if (rmrMatch) {
+            const targetRoomId = rmrMatch[1];
+            try {
+                const ranking = await getRanking(targetRoomId);
+                const reply = await formatRanking(ranking, accountId, roomId, messageId);
+                await sendchatwork(reply, roomId);
+                return res.status(200).send('Ranking requested');
+            } catch (error) {
+                console.error('Failed to get ranking:', error);
+                await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nランキングの取得に失敗しました。ルームID ${targetRoomId} が正しいか確認してください。`, roomId);
+                return res.status(500).send('Failed to get ranking');
+            }
+        }
+        
         // 削除コマンド (ゆずbotへの返信かつ「削除」のみの場合)
         if (body.includes(`[rp aid=${YUZUBOT_ACCOUNT_ID}]`) && trimmedBody.endsWith("削除")) {
             const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
@@ -431,6 +562,9 @@ app.post('/webhook', async (req, res) => {
             await saving(body, null, messageId, roomId, accountId);
             return res.status(200).send('Saving command executed.');
         }
+
+        // コマンドではない通常のメッセージの場合、/rmr用のカウントを更新
+        await updateRanking(roomId, accountId);
 
         res.status(200).send('OK');
     } catch (error) {
