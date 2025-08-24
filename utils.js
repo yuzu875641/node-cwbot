@@ -35,7 +35,7 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID) {
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
-        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下で返答して下さい:" + message;
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下、markdown形式の使用しないで返答して下さい:" + message;
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
