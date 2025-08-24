@@ -5,8 +5,9 @@ const { URLSearchParams } = require('url');
 
 app.use(express.json());
 
-// 環境変数からChatwork APIトークンを取得
+// 環境変数からChatwork APIトークンとRenderのDeploy Hook URLを取得
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
+const RESTART_WEBHOOK_URL = process.env.RESTART_WEBHOOK_URL;
 
 // 投稿履歴を管理するグローバルオブジェクト（サーバーの再起動で消滅します）
 const messageHistory = {};
@@ -102,6 +103,25 @@ app.post('/webhook', async (req, res) => {
 
         // 送信者が管理者IDリストに含まれていれば無視
         if (adminIds.includes(account_id)) {
+            // --- 管理者専用コマンドの処理 ---
+            if (body.startsWith('/restart')) {
+                const replyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+                const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+
+                if (!RESTART_WEBHOOK_URL) {
+                    await axios.post(replyUrl, { body: `[rp aid=${account_id}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
+                    return res.status(200).send('Restart URL not configured.');
+                }
+                
+                // 再起動の通知メッセージを送信
+                const replyMessage = `[rp aid=${account_id}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+                await axios.post(replyUrl, { body: replyMessage }, { headers });
+
+                // RenderのDeploy Hook URLにPOSTリクエストを送信して再起動をトリガー
+                await axios.post(RESTART_WEBHOOK_URL);
+                
+                return res.status(200).send('Restarting...');
+            }
             return res.status(200).send('Ignoring admin user.');
         }
 
@@ -121,20 +141,17 @@ app.post('/webhook', async (req, res) => {
 
         // 2. /kick 投稿チェック
         if (body.startsWith('/kick')) {
-            // この機能は管理者のみが使用できるため、`adminIds.includes(account_id)`のチェックをここで実施
-            if (adminIds.includes(account_id)) {
-                const replyPattern = /\[rp aid=(\d+)/;
-                const match = body.match(replyPattern);
-                if (match) {
-                    const targetAccountId = parseInt(match[1], 10);
-                    await downgradeToReadonly(
-                        targetAccountId,
-                        room_id,
-                        `${targetAccountId}を閲覧メンバーにしました。`,
-                        message_id,
-                        account_id
-                    );
-                }
+            const replyPattern = /\[rp aid=(\d+)/;
+            const match = body.match(replyPattern);
+            if (match) {
+                const targetAccountId = parseInt(match[1], 10);
+                await downgradeToReadonly(
+                    targetAccountId,
+                    room_id,
+                    `${targetAccountId}を閲覧メンバーにしました。`,
+                    message_id,
+                    account_id
+                );
             }
             return res.status(200).send('OK');
         }
