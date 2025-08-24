@@ -95,7 +95,7 @@ app.post('/webhook', async (req, res) => {
         const messageId = webhookEvent.message_id;
         
         // メッセージ本文が空か、必須パラメータが欠落しているか確認
-        if (!body || !accountId || !!roomId || !messageId) {
+        if (!body || !accountId || !roomId || !messageId) {
             console.error('Webhook event is missing required parameters (body, accountId, roomId, or messageId).');
             return res.status(400).send('Missing webhook parameters.');
         }
