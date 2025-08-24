@@ -40,7 +40,6 @@ async function updateMemberRole(roomId, accountId, newRole) {
     try {
         await axios.put(
             `https://api.chatwork.com/v2/rooms/${roomId}/members`,
-            // 修正: `members_admin_ids` パラメータを追加
             { members: [{ account_id: accountId, role: newRole }], members_admin_ids: [myAdminId] },
             { headers: { 'X-ChatWorkToken': CHATWORK_API_TOKEN } }
         );
@@ -108,9 +107,9 @@ app.post('/webhook', async (req, res) => {
         console.error('Error updating message count:', error);
     }
 
-    // ここでスパム対策機能が実行される（管理者にも適用）
     const commandBody = messageBody.replace(/\[To:\d+\]/, '').trim();
     
+    // ここでスパム対策機能が実行される
     let emojiCount = 0;
     for (const emoji of chatworkEmojis) {
         emojiCount += (messageBody.match(new RegExp(emoji.replace(/[()]/g, '\\$&'), 'g')) || []).length;
