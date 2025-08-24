@@ -3,7 +3,6 @@ const axios = require('axios');
 const app = express();
 const { URLSearchParams } = require('url');
 const { createClient } = require('@supabase/supabase-js');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 app.use(express.json());
 
@@ -15,9 +14,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Supabaseクライアントの初期化
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Gemini APIクライアントの初期化
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // おみくじの結果リスト
 const fortunes = ['大吉', '吉', '中吉', '小吉', '末吉', '凶', '大凶'];
@@ -78,6 +74,42 @@ async function deleteMessages(body, roomId, accountId, messageId) {
     await sendchatwork(replyMessage, roomId);
 }
 
+// Geminiにメッセージを送信する関数
+async function generateGemini(body, message, messageId, roomId, accountId) {
+    try {
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。チャットボットで、顔文字を使うことが好きです。以下のメッセージに対して200字以下で返答して下さい:" + message;
+        
+        const response = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: message,
+                            },
+                        ],
+                    },
+                ],
+            },
+            {
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            }
+        );
+
+        const responseContent = response.data.candidates[0].content;
+        let responseParts = responseContent.parts.map((part) => part.text).join("\n");
+        responseParts = responseParts.replace(/\*/g, ""); // アスタリスクを削除
+        
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nゆずbotです。\n${responseParts}`, roomId);
+    } catch (error) {
+        console.error('エラーが発生しました:', error.response ? error.response.data : error.message);
+
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nエラーが発生しました。`, roomId);
+    }
+}
 
 // Webhookエンドポイント
 app.post('/webhook', async (req, res) => {
@@ -153,31 +185,14 @@ app.post('/webhook', async (req, res) => {
         if (body.startsWith('/ai')) {
             const query = body.substring(4).trim(); // '/ai' の後のテキストを取得
             
-            // プロンプトが空の場合はエラーを返す
             if (query.length === 0) {
                 const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n聞きたいことを入力してください。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('No query provided.');
             }
             
-            try {
-                const model = genAI.getGenerativeModel({ model: "gemini-pro"});
-                const result = await model.generateContent(query);
-                const response = await result.response;
-                const text = response.text();
-                
-                // 200文字以内の制限を適用
-                const trimmedText = text.length > 200 ? text.substring(0, 197) + '...' : text;
-
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nゆずbotです。\n${trimmedText}`;
-                await sendchatwork(replyMessage, roomId);
-                return res.status(200).send('AI command executed.');
-            } catch (error) {
-                console.error('Gemini API Error:', error);
-                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nGemini APIとの通信中にエラーが発生しました。`;
-                await sendchatwork(errorMessage, roomId);
-                return res.status(500).send('Gemini API Error');
-            }
+            await generateGemini(body, query, messageId, roomId, accountId);
+            return res.status(200).send('AI command executed.');
         }
 
         // --- 削除 コマンド ---
