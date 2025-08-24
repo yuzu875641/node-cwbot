@@ -2,9 +2,9 @@
   "name": "chatwork-bot",
   "version": "1.0.0",
   "description": "A Chatwork bot with various features.",
-  "main": "server.js", // ここを "server.js" に変更
+  "main": "server.js",
   "scripts": {
-    "start": "node server.js" // ここを "node server.js" に変更
+    "start": "node server.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
