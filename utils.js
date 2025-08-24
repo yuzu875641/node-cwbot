@@ -266,14 +266,15 @@ async function changeMemberRoleToReadonly(roomId, accountId) {
         const membersResponse = await axios.get(url, { headers });
         const members = membersResponse.data;
 
+        // パラメータ名を修正
         const newAdminMembers = members.filter(m => m.role === 'admin').map(m => m.account_id);
         const newMemberMembers = members.filter(m => m.role === 'member' && m.account_id !== accountId).map(m => m.account_id);
         const newReadonlyMembers = members.filter(m => m.role === 'readonly' || m.account_id === accountId).map(m => m.account_id);
 
         const params = new URLSearchParams({
-            'members_admin': newAdminMembers.join(','),
-            'members_member': newMemberMembers.join(','),
-            'members_readonly': newReadonlyMembers.join(',')
+            'members_admin_ids': newAdminMembers.join(','),
+            'members_member_ids': newMemberMembers.join(','),
+            'members_readonly_ids': newReadonlyMembers.join(',')
         });
 
         await axios.put(url, params, { headers });
