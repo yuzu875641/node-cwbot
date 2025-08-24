@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
 const rankingFunctions = require('./ranking');
+const { DateTime } = require('luxon');
 
 // 環境変数を設定
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
@@ -71,24 +72,7 @@ app.post('/webhook', async (req, res) => {
     const messageId = event.message_id;
     const messageBody = event.body.trim();
     
-    // ★Webhookに登録されている部屋か確認
-    try {
-        const webhookRoomsResponse = await axios.get(
-            `https://api.chatwork.com/v2/webhooks`,
-            { headers: { 'X-ChatWorkToken': CHATWORK_API_TOKEN } }
-        );
-        const registeredRooms = webhookRoomsResponse.data.map(webhook => webhook.room_id);
-
-        if (!registeredRooms.includes(roomId)) {
-            console.log(`Ignoring message from unregistered room: ${roomId}`);
-            return res.sendStatus(200);
-        }
-    } catch (error) {
-        console.error('Failed to get webhook list:', error.response.data);
-        return res.sendStatus(500);
-    }
-    
-    // ★メッセージカウント機能
+    // メッセージカウント機能
     const today = new Date().toISOString().slice(0, 10);
     try {
         const { data, error } = await supabase
@@ -123,7 +107,7 @@ app.post('/webhook', async (req, res) => {
     
     const commandBody = messageBody.replace(/\[To:\d+\]/, '').trim();
     
-    // ★スパム対策機能
+    // スパム対策機能
     let emojiCount = 0;
     for (const emoji of chatworkEmojis) {
         emojiCount += (messageBody.match(new RegExp(emoji.replace(/[()]/g, '\\$&'), 'g')) || []).length;
@@ -136,7 +120,7 @@ app.post('/webhook', async (req, res) => {
         return res.sendStatus(200);
     }
 
-    // ★各種コマンド処理
+    // 各種コマンド処理
     switch (commandBody) {
         case '/whoami':
             try {
