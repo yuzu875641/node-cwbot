@@ -271,7 +271,7 @@ async function top(roomId) {
 
   let chatworkMessage = '昨日のメッセージランキングだよ(cracker)[info][title]メッセージ数ランキング[/title]\n';
   top8Diffs.forEach((item, index) => {
-    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
+    chatworkMessage += `[download:1835813530]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
   });
   await sendchatwork(`${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
 }
@@ -298,7 +298,7 @@ async function topNeo(body, message, messageId, roomId, accountId) {
 
   let chatworkMessage = '[info][title]メッセージ数ランキング[/title]';
   top8Diffs.forEach((item, index) => {
-    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
+    chatworkMessage += `[download:1835813530]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
   });
 
   await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
