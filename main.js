@@ -108,14 +108,9 @@ app.post('/webhook', async (req, res) => {
         console.error('Error updating message count:', error);
     }
 
-    // 管理者からのメッセージは無視
-    if (accountId === myAdminId) {
-        return res.sendStatus(200);
-    }
-    
+    // ここでスパム対策機能が実行される（管理者にも適用）
     const commandBody = messageBody.replace(/\[To:\d+\]/, '').trim();
     
-    // スパム対策機能
     let emojiCount = 0;
     for (const emoji of chatworkEmojis) {
         emojiCount += (messageBody.match(new RegExp(emoji.replace(/[()]/g, '\\$&'), 'g')) || []).length;
@@ -125,6 +120,11 @@ app.post('/webhook', async (req, res) => {
     
     if (emojiCount >= 15 || (isToallMessage && hasAnyEmoji)) {
         await updateMemberRole(roomId, accountId, 'viewer');
+        return res.sendStatus(200);
+    }
+
+    // ここから、管理者以外のメッセージのみを処理する
+    if (accountId === myAdminId) {
         return res.sendStatus(200);
     }
 
@@ -205,7 +205,7 @@ app.post('/webhook', async (req, res) => {
             break;
             
         default:
-            // 該当するコマンドがない場合は何もしない
+            await postMessageWithReply(roomId, messageId, accountId, "承知いたしました。該当するコマンドはありませんでした。");
             break;
     }
 
