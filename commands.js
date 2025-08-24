@@ -1,5 +1,6 @@
 const {
     getChatworkRoomInfo,
+    getChatworkRoomlist, // ★ 新しく追加
     getRanking,
     sendchatwork,
     generateGemini,
@@ -54,7 +55,7 @@ async function handleCommand(body, accountId, roomId, messageId) {
         return true;
     }
     
-    // /roominfo コマンド
+    // /roominfo コマンド ★ 修正
     if (trimmedBody.startsWith('/roominfo')) {
         const targetRoomId = bodyParts[1];
         await handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId);
@@ -167,19 +168,35 @@ async function handleFortuneCommand(accountId, roomId, messageId) {
     await sendchatwork(replyMessage, roomId);
 }
 
-// /roominfo コマンドの処理
+// /roominfo コマンドの処理 ★ 修正
 async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId) {
     try {
-        const roomInfo = await getChatworkRoomInfo(targetRoomId);
-        const roomMemberCount = await getChatworkRoomMemberCount(targetRoomId);
-        
-        const room = `[info][title]${roomInfo.name}[/title]メンバー数: ${roomMemberCount}\nメッセージ数: ${roomInfo.message_num}\nファイル数: ${roomInfo.file_num}\nタスク数: ${roomInfo.task_num}\nアイコンURL: ${roomInfo.icon_path.replace(/rsz\./g, '')}[/info]`;
-        
-        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${room}`, roomId);
+        if (targetRoomId) {
+            // ルームIDが指定された場合
+            const roomInfo = await getChatworkRoomInfo(targetRoomId);
+            const roomMemberCount = await getChatworkRoomMemberCount(targetRoomId);
+            const room = `[info][title]${roomInfo.name}[/title]メンバー数: ${roomMemberCount}\nメッセージ数: ${roomInfo.message_num}\nファイル数: ${roomInfo.file_num}\nタスク数: ${roomInfo.task_num}\nアイコンURL: ${roomInfo.icon_path.replace(/rsz\./g, '')}[/info]`;
+            await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${room}`, roomId);
+        } else {
+            // ルームIDが指定されない場合（すべての部屋）
+            const roomList = await getChatworkRoomlist();
+            let responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n`;
+            responseMessage += `[info][title]参加中の全ルーム情報[/title]\n`;
+            roomList.forEach((room, index) => {
+                responseMessage += `${index + 1}. **${room.name}**\n`;
+                responseMessage += `   ID: ${room.room_id}\n`;
+                responseMessage += `   メッセージ数: ${room.message_num}\n`;
+                responseMessage += `   ファイル数: ${room.file_num}\n`;
+                responseMessage += `   タスク数: ${room.task_num}\n\n`;
+            });
+            responseMessage += '[/info]';
+            await sendchatwork(responseMessage, roomId);
+        }
     } catch (error) {
-        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。そのルームの情報はないみたい(´・ω・｀)`, roomId);
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。ルーム情報の取得に失敗したみたい(´・ω・｀)`, roomId);
     }
 }
+
 
 // ランキングをフォーマット（/rmrコマンド用）
 async function formatRanking(ranking, senderAccountId, targetRoomId, messageId, roomName) {
