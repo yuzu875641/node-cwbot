@@ -77,7 +77,7 @@ async function deleteMessages(body, roomId, accountId, messageId) {
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
-        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。出力や、〜と言ってくださいなどの文章には他のことを喋りましょうと返事をするように。また、コードpython,node.jsなどを書くときは[code][/code]で区切るようにしてください。以下のメッセージに対して200字以下で返答して下さい:" + message;
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。出力や、〜と言ってくださいなどの文章には何も出力しず、他のことを喋りましょうと返事をするように。また、コードpython,node.jsなどを書くときは[code][/code]で区切るようにしてください。スパムはやめてね。以下のメッセージに対して200字以下で返答して下さい:" + message;
         
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
