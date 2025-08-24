@@ -5,8 +5,9 @@ const { URLSearchParams } = require('url');
 
 app.use(express.json());
 
-// 環境変数からChatwork APIトークンを取得
+// 環境変数からChatwork APIトークンとRenderのDeploy Hook URLを取得
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
+const RESTART_WEBHOOK_URL = process.env.RESTART_WEBHOOK_URL;
 
 // 投稿履歴を管理するグローバルオブジェクト（サーバーの再起動で消滅します）
 const messageHistory = {};
@@ -98,6 +99,16 @@ app.post('/webhook', async (req, res) => {
         // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
+        }
+
+        // --- 新しい /test コマンドの処理 ---
+        if (body.startsWith('/test')) {
+            const now = new Date();
+            const replyMessage = `[rp aid=${account_id} to=${room_id}-${message_id}][pname:${account_id}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
+            const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+            const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+            await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
+            return res.status(200).send('Test OK');
         }
 
         // 管理者IDを動的に取得
