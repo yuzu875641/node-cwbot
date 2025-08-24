@@ -9,7 +9,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-const EXCLUDED_ROOMS = ['407802259'];
+const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
