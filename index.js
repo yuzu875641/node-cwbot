@@ -35,7 +35,7 @@ const emojiPattern = new RegExp(
   emojiList.map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g'
 );
 
-// チャットワークへメッセージを送信する関数 (提供された関数)
+// チャットワークへメッセージを送信する関数
 async function sendchatwork(ms, CHATWORK_ROOM_ID) {
     try {
         await axios.post(
@@ -111,15 +111,19 @@ app.post('/webhook', async (req, res) => {
             return res.status(400).send('Invalid payload');
         }
 
+        // Webhookのペイロードから必要な情報を取得
         const body = webhookEvent.body;
         const accountId = webhookEvent.account_id;
         const roomId = webhookEvent.room_id;
         const messageId = webhookEvent.message_id;
         
+        // メッセージ本文が空か、必須パラメータが欠落しているか確認
         if (!body || !accountId || !roomId || !messageId) {
             console.error('Webhook event is missing required parameters (body, accountId, roomId, or messageId).');
             return res.status(400).send('Missing webhook parameters.');
         }
+
+        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
 
         // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
@@ -127,6 +131,7 @@ app.post('/webhook', async (req, res) => {
         }
 
         // --- コマンドの処理（最優先） ---
+        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
         
         // /test コマンド
         if (body.startsWith('/test')) {
@@ -138,10 +143,28 @@ app.post('/webhook', async (req, res) => {
 
         // 管理者IDを動的に取得
         const membersUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
-        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
         const currentMembersResponse = await axios.get(membersUrl, { headers });
         const currentMembers = currentMembersResponse.data;
         const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
+        
+        // --- /whoami コマンド ---
+        if (body.startsWith('/whoami')) {
+            const senderInfo = currentMembers.find(member => member.account_id === accountId);
+            const senderName = senderInfo ? senderInfo.name : '不明なユーザー';
+            const senderRole = senderInfo ? senderInfo.role : '不明';
+
+            const roleMap = {
+                'admin': '管理者',
+                'member': 'メンバー',
+                'readonly': '閲覧のみ'
+            };
+            const displayRole = roleMap[senderRole] || senderRole;
+
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]あなたの情報です。\n- 名前: ${senderName}\n- 部屋の権限: ${displayRole}`;
+            await sendchatwork(replyMessage, roomId);
+            return res.status(200).send('Whoami OK');
+        }
+
 
         // /restart コマンド（管理者のみ）
         if (body.startsWith('/restart')) {
