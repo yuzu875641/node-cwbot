@@ -1,12 +1,13 @@
 const {
     getChatworkRoomInfo,
-    getChatworkRoomlist, // ★ 新しく追加
+    getChatworkRoomlist,
     getRanking,
     sendchatwork,
     generateGemini,
     saving,
     topNeo,
-    topFile
+    topFile,
+    updateRanking // ★ 追加
 } = require('./utils');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -55,7 +56,7 @@ async function handleCommand(body, accountId, roomId, messageId) {
         return true;
     }
     
-    // /roominfo コマンド ★ 修正
+    // /roominfo コマンド
     if (trimmedBody.startsWith('/roominfo')) {
         const targetRoomId = bodyParts[1];
         await handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId);
@@ -168,7 +169,7 @@ async function handleFortuneCommand(accountId, roomId, messageId) {
     await sendchatwork(replyMessage, roomId);
 }
 
-// /roominfo コマンドの処理 ★ 修正
+// /roominfo コマンドの処理
 async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId) {
     try {
         if (targetRoomId) {
