@@ -30,7 +30,9 @@ const emojiList = [
     '(lightbulb)', '(*)', '(h)', '(F)', '(cracker)', '(eat)', '(^)', '(coffee)',
     '(beer)', '(handshake)', '(y)'
 ];
-const emojiPattern = new RegExp(emojiList.map(e => `\\${e}`).join('|'), 'g');
+const emojiPattern = new RegExp(
+  emojiList.map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g'
+);
 
 // メンバーを閲覧のみに降格させる関数
 async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, messageId, senderAccountId) {
@@ -87,11 +89,7 @@ app.post('/webhook', async (req, res) => {
 
         const { body, account_id, room_id, message_id, account } = webhookEvent;
 
-        // 【ここが重要】Bot自身の投稿を無視する
-        // 投稿者のaccount_idが、BotのAPIトークンに関連付けられたIDと一致するか確認
-        // このチェックは、Chatwork APIの 'me' エンドポイントで取得できるため、初期段階では省略
-        // シンプルに、投稿内容がBotの返信フォーマットを含んでいるかで判断します。
-        // ※ `account` オブジェクトには、account_id と name が含まれます。
+        // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
         }
