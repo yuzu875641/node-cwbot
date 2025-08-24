@@ -109,7 +109,7 @@ app.post('/webhook', async (req, res) => {
 
     const commandBody = messageBody.replace(/\[To:\d+\]/, '').trim();
     
-    // ここでスパム対策機能が実行される
+    // スパム対策機能
     let emojiCount = 0;
     for (const emoji of chatworkEmojis) {
         emojiCount += (messageBody.match(new RegExp(emoji.replace(/[()]/g, '\\$&'), 'g')) || []).length;
