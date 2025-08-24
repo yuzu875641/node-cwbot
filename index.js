@@ -353,11 +353,11 @@ async function getAccountName(accountId) {
             await supabase.from('pname_cache').insert([{ account_id: accountId, account_name: contact.name }]);
             return contact.name;
         } else {
-            return `アカウントID:${accountId}`;
+            return `${accountId}`;
         }
     } catch (error) {
         console.error('Failed to get account name:', error.message);
-        return `アカウントID:${accountId}`;
+        return `${accountId}`;
     }
 }
 
@@ -374,7 +374,7 @@ async function formatRanking(ranking, senderAccountId, targetRoomId, messageId) 
     for (let i = 0; i < ranking.length; i++) {
         const item = ranking[i];
         const accountName = await getAccountName(item.account_id);
-        result += `${i + 1}位 [pname:${accountName}]さん - ${item.count} コメント\n`;
+        result += `${i + 1}位 [piconname:${accountName}]さん - ${item.count} コメント\n`;
         total += item.count;
     }
 
