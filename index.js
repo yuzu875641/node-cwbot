@@ -87,7 +87,7 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
         });
 
         // 4. 成功メッセージを返信
-        const fullReplyMessage = `[rp aid=${senderAccountId} to=${roomId}-${messageId}][pname:${senderAccountId}]さん、${replyMessageBody}`;
+        const fullReplyMessage = `[rp aid=${senderAccountId} to=${roomId}-${messageId}][pname:${senderAccountId}]さん、\n${replyMessageBody}`;
         await sendchatwork(fullReplyMessage, roomId);
 
         console.log(`Changed ${targetAccountId} to readonly.`);
@@ -100,6 +100,42 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
             console.error('Error in downgradeToReadonly:', error.message);
         }
     }
+}
+
+// メッセージを削除する関数
+async function deleteMessages(body, roomId, accountId, messageId) {
+    const dlmessageIds = [...body.matchAll(/(?<=to=\d+-)(\d+)/g)].map(match => match[1]);
+
+    if (dlmessageIds.length === 0) {
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n削除対象のメッセージIDが見つかりませんでした。`;
+        await sendchatwork(replyMessage, roomId);
+        return;
+    }
+    
+    let deletedCount = 0;
+    let failedIds = [];
+
+    for (const id of dlmessageIds) {
+        const url = `https://api.chatwork.com/v2/rooms/${roomId}/messages/${id}`;
+        try {
+            await axios.delete(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'x-chatworktoken': CHATWORK_API_TOKEN,
+                }
+            });
+            deletedCount++;
+        } catch (err) {
+            console.error(`メッセージID ${id} の削除中にエラーが発生しました:`, err.response ? err.response.data : err.message);
+            failedIds.push(id);
+        }
+    }
+    
+    let replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n**${deletedCount}**件のメッセージを削除しました。`;
+    if (failedIds.length > 0) {
+        replyMessage += `\n以下のメッセージは削除に失敗しました: ${failedIds.join(', ')}`;
+    }
+    await sendchatwork(replyMessage, roomId);
 }
 
 // Webhookエンドポイント
@@ -131,7 +167,6 @@ app.post('/webhook', async (req, res) => {
         }
 
         // --- コマンドの処理（最優先） ---
-        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
         
         // /test コマンド
         if (body.startsWith('/test')) {
@@ -139,6 +174,14 @@ app.post('/webhook', async (req, res) => {
             const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
             await sendchatwork(replyMessage, roomId);
             return res.status(200).send('Test OK');
+        }
+        
+        // /coin コマンド
+        if (body.startsWith('/coin')) {
+            const result = Math.random() < 0.5 ? '表' : '裏';
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]コインを投げました... 結果は「**${result}**」です。🪙`;
+            await sendchatwork(replyMessage, roomId);
+            return res.status(200).send('Coin OK');
         }
 
         // 管理者IDを動的に取得
@@ -165,6 +208,17 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Whoami OK');
         }
 
+        // --- /削除 コマンド（管理者のみ） ---
+        if (body.startsWith('/削除')) {
+            if (!adminIds.includes(accountId)) {
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nこのコマンドは管理者のみ実行できます。`;
+                await sendchatwork(replyMessage, roomId);
+                return res.status(200).send('Unauthorized for delete command.');
+            }
+            await deleteMessages(body, roomId, accountId, messageId);
+            return res.status(200).send('Delete command executed.');
+        }
+
 
         // /restart コマンド（管理者のみ）
         if (body.startsWith('/restart')) {
@@ -172,11 +226,11 @@ app.post('/webhook', async (req, res) => {
                 return res.status(200).send('Unauthorized user for restart.');
             }
             if (!RESTART_WEBHOOK_URL) {
-                const replyMessage = `[rp aid=${accountId}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
+                const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nRender再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('Restart URL not configured.');
             }
-            const replyMessage = `[rp aid=${accountId}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+            const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nBotを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
             await sendchatwork(replyMessage, roomId);
             await axios.post(RESTART_WEBHOOK_URL);
             return res.status(200).send('Restarting...');
@@ -250,7 +304,7 @@ app.post('/webhook', async (req, res) => {
             );
             return res.status(200).send('OK');
         } else if (sameMessageCount >= 10) {
-            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、同じ内容の連続投稿はご遠慮ください。`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n同じ内容の連続投稿はご遠慮ください。`;
             await sendchatwork(replyMessage, roomId);
             return res.status(200).send('OK');
         }
