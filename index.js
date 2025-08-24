@@ -233,7 +233,7 @@ app.post('/webhook', async (req, res) => {
                 return res.status(500).send('Supabase Insert Error');
             }
             
-            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじの結果は「**${result}**」です。🎉`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじの結果は[download:1]${result}[/download]です。🎉`;
             await sendchatwork(replyMessage, roomId);
             return res.status(200).send('Fortune OK');
         }
