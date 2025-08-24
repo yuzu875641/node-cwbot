@@ -1,15 +1,17 @@
 {
-  "name": "chatwork-bot",
+  "name": "your-project-name",
   "version": "1.0.0",
-  "description": "A Chatwork bot for moderation and fun commands.",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@google/generative-ai": "^0.15.0",
-    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/supabase-js": "^2.45.1",
     "axios": "^1.7.2",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "luxon": "^3.4.4"
   }
 }
