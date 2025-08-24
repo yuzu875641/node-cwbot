@@ -3,9 +3,12 @@ const app = express();
 require('dotenv').config();
 
 const { handleCommand } = require('./commands');
-const { updateRanking } = require('./utils');
+const { updateRanking, changeMemberRoleToReadonly, sendchatwork } = require('./utils');
 
 app.use(express.json());
+
+// 絵文字リストを定義
+const EMOJI_LIST = [':)', ':(', ':D', '8-)', ':o', ';)', ';(', '(sweat)', ':|', ':*', ':p', '(blush)', ':^)', '|-)', '(inlove)', ':]', '(talk)', '(yawn)', '(puke)', '(emo)', '8-|', ':#', '(nod)', '(shake)', '(^^;)', '(whew)', '(clap)', '(bow)', '(roger)', '(flex)', '(dance)', ':/', '(gogo)', '(think)', '(please)', '(quick)', '(anger)', '(devil)', '(lightbulb)', '(*)', '(h)', '(F)', '(cracker)', '(eat)', '(^)', '(coffee)', '(beer)', '(handshake)', '(y)'];
 
 // Webhookエンドポイント
 app.post('/webhook', async (req, res) => {
@@ -23,6 +26,24 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Command handled.');
         }
 
+        // 絵文字の数をカウントする
+        let emojiCount = 0;
+        EMOJI_LIST.forEach(emoji => {
+            const regex = new RegExp(escapeRegExp(emoji), 'g');
+            const matches = body.match(regex);
+            if (matches) {
+                emojiCount += matches.length;
+            }
+        });
+
+        console.log(`Emoji count: ${emojiCount}`);
+        
+        // 15個以上の絵文字が含まれているかチェック
+        if (emojiCount >= 15) {
+            await changeMemberRoleToReadonly(room_id, account_id);
+            await sendchatwork(`[rp aid=${account_id} to=${room_id}-${message_id}]@${account_id}さん\n絵文字の使いすぎです。権限を閲覧のみに変更しました。`, room_id);
+        }
+
         // コマンドではない通常のメッセージの場合、ランキングを更新
         await updateRanking(room_id, account_id);
 
@@ -32,6 +53,10 @@ app.post('/webhook', async (req, res) => {
         res.status(500).send('Internal Server Error');
     }
 });
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 // サーバーのポート設定
 const PORT = process.env.PORT || 3000;
