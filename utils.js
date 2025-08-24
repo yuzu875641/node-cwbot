@@ -257,6 +257,34 @@ async function getChatworkRoomMemberCount(roomId) {
     return response.data.length;
 }
 
+// メンバーの権限を「閲覧」に変更する関数
+async function changeMemberRoleToReadonly(roomId, accountId) {
+    try {
+        const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
+        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+
+        const membersResponse = await axios.get(url, { headers });
+        const members = membersResponse.data;
+
+        const newAdminMembers = members.filter(m => m.role === 'admin').map(m => m.account_id);
+        const newMemberMembers = members.filter(m => m.role === 'member' && m.account_id !== accountId).map(m => m.account_id);
+        const newReadonlyMembers = members.filter(m => m.role === 'readonly' || m.account_id === accountId).map(m => m.account_id);
+
+        const params = new URLSearchParams({
+            'members_admin': newAdminMembers.join(','),
+            'members_member': newMemberMembers.join(','),
+            'members_readonly': newReadonlyMembers.join(',')
+        });
+
+        await axios.put(url, params, { headers });
+        
+        console.log(`User ${accountId} role changed to 'readonly' in room ${roomId}.`);
+        
+    } catch (error) {
+        console.error('Failed to change member role:', error.response?.data || error.message);
+    }
+}
+
 module.exports = {
     sendchatwork,
     generateGemini,
@@ -270,5 +298,6 @@ module.exports = {
     topNeo,
     topFile,
     updateRanking,
-    getRanking
+    getRanking,
+    changeMemberRoleToReadonly
 };
