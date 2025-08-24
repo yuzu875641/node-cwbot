@@ -3,6 +3,7 @@ const axios = require('axios');
 const app = express();
 const { URLSearchParams } = require('url');
 const { createClient } = require('@supabase/supabase-js');
+const { DateTime } = require('luxon');
 
 app.use(express.json());
 
@@ -127,6 +128,237 @@ async function getChatworkRoomMemberCount(roomId) {
     return response.data.length;
 }
 
+// チャットワークのルームリストを取得する関数
+async function getChatworkRoomlist() {
+    const url = 'https://api.chatwork.com/v2/rooms';
+    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const response = await axios.get(url, { headers });
+    return response.data;
+}
+
+// 統計データを保存する関数
+async function saving(body, message, messageId, roomId, accountId) {
+  try {
+    const japanTime = DateTime.now().setZone('Asia/Tokyo');
+    const today = japanTime.toFormat('yyyy-MM-dd');
+    const timeh = japanTime.toFormat('H');
+    const list = await getChatworkRoomlist();
+    const { data, error } = await supabase
+      .from('tops')
+      .insert([
+        { list: list,
+          time: timeh,
+          day: today,
+        }
+    ]);
+    if (error) {
+        console.error('Supabase save error:', error);
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n統計データの保存中にエラーが発生しました。`, roomId);
+    } else {
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n統計を開始しました！`, roomId);
+    }
+  } catch(error) {
+    console.error('Saving function error:', error.message);
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n統計データの保存中に予期せぬエラーが発生しました。`, roomId);
+  }
+}
+
+// 最新の統計データを取得する関数
+async function get() {
+  try {
+    const { data, error } = await supabase
+      .from('tops')
+      .select('list, time, day')
+      .order('id', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('Supabase get error:', error);
+      return null;
+    }
+    return data;
+  } catch (error) {
+    console.error('Supabase get error:', error);
+    return null;
+  }
+}
+
+// 指定した過去の統計データを取得する関数
+async function gget(num) {
+  const { data, error } = await supabase
+    .from('tops')
+    .select('list, time, day')
+    .order('id', { ascending: false })
+    .offset(num)
+    .limit(1);
+  return data;
+}
+
+// メッセージ数の差分を計算する関数
+function calculateMessageDiffs(supabaseData, chatworkRoomlist) {
+  if (!supabaseData || !supabaseData.length || !chatworkRoomlist) {
+    return [];
+  }
+
+  const latestSupabaseList = JSON.parse(JSON.stringify(supabaseData[0].list));
+  const diffs = [];
+  
+  chatworkRoomlist.forEach(room => {
+    const room_id = room.room_id;
+    const chatworkMessageNum = room.message_num;
+    const supabaseRoomData = latestSupabaseList.find(item => item.room_id === room_id);
+
+    if (supabaseRoomData) {
+      const supabaseMessageNum = supabaseRoomData.message_num;
+      const diff = chatworkMessageNum - supabaseMessageNum;
+
+      diffs.push({
+        room_id,
+        name: room.name,
+        diff,
+      });
+    }
+  });
+
+  diffs.sort((a, b) => b.diff - a.diff);
+  return diffs;
+}
+
+// ファイル数の差分を計算する関数
+function calculateFileDiffs(supabaseData, chatworkRoomlist) {
+  if (!supabaseData || !supabaseData.length || !chatworkRoomlist) {
+    return [];
+  }
+  const latestSupabaseList = JSON.parse(JSON.stringify(supabaseData[0].list));
+  const diffs = [];
+  chatworkRoomlist.forEach(room => {
+    const room_id = room.room_id;
+    const chatworkFileNum = room.file_num;
+    const supabaseRoomData = latestSupabaseList.find(item => item.room_id === room_id);
+    if (supabaseRoomData) {
+      const supabaseFileNum = supabaseRoomData.file_num;
+      const diff = chatworkFileNum - supabaseFileNum;
+
+      diffs.push({
+        room_id,
+        name: room.name,
+        diff,
+      });
+    }
+  });
+  diffs.sort((a, b) => b.diff - a.diff);
+  return diffs;
+}
+
+// メッセージランキングを表示する関数（通常版）
+async function top(roomId) {
+  const supabaseData = await get();
+  const chatworkRoomlist = await getChatworkRoomlist();
+
+  if (!supabaseData || !chatworkRoomlist) {
+    console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
+    return;
+  }
+
+  const messageDiffs = calculateMessageDiffs(supabaseData, chatworkRoomlist);
+
+  if (!messageDiffs.length) {
+    console.log('message_numのデータが見つかりません。');
+    return;
+  }
+
+  const top8Diffs = messageDiffs.slice(0, 8);
+
+  let chatworkMessage = '昨日のメッセージランキングだよ(cracker)[info][title]メッセージ数ランキング[/title]\n';
+  top8Diffs.forEach((item, index) => {
+    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
+  });
+  await sendchatwork(`${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
+}
+
+// メッセージランキングを表示する関数（Neo版）
+async function topNeo(body, message, messageId, roomId, accountId) {
+  const supabaseData = await get();
+  const chatworkRoomlist = await getChatworkRoomlist();
+
+  if (!supabaseData || !chatworkRoomlist) {
+    console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nランキングデータの取得に失敗しました。`, roomId);
+    return;
+  }
+
+  const messageDiffs = calculateMessageDiffs(supabaseData, chatworkRoomlist);
+
+  if (!messageDiffs.length || messageDiffs[0].diff === 0) {
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n前回の統計からのメッセージ増加数が0のため、ランキングを生成できませんでした。`, roomId);
+    return;
+  }
+
+  const top8Diffs = messageDiffs.slice(0, 8);
+
+  let chatworkMessage = '[info][title]メッセージ数ランキング[/title]';
+  top8Diffs.forEach((item, index) => {
+    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
+  });
+
+  await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
+}
+
+// メッセージランキングを表示する関数（NeoHack版）
+async function topNeoHack(body, message, messageId, roomId, accountId) {
+  const supabaseData = await get();
+  const chatworkRoomlist = await getChatworkRoomlist();
+
+  if (!supabaseData || !chatworkRoomlist) {
+    console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nランキングデータの取得に失敗しました。`, roomId);
+    return;
+  }
+
+  const messageDiffs = calculateMessageDiffs(supabaseData, chatworkRoomlist);
+
+  if (!messageDiffs.length || messageDiffs[0].diff === 0) {
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n前回の統計からのメッセージ増加数が0のため、ランキングを生成できませんでした。`, roomId);
+    return;
+  }
+
+  const top8Diffs = messageDiffs.slice(0, 30);
+  let chatworkMessage = '[info][title]メッセージ数ランキング[/title]';
+  top8Diffs.forEach((item, index) => {
+    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}コメ。[hr]`;
+  });
+
+  await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
+}
+
+// ファイルランキングを表示する関数
+async function topFile(body, message, messageId, roomId, accountId) {
+  const supabaseData = await get();
+  const chatworkRoomlist = await getChatworkRoomlist();
+
+  if (!supabaseData || !chatworkRoomlist) {
+    console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nランキングデータの取得に失敗しました。`, roomId);
+    return;
+  }
+
+  const fileDiffs = calculateFileDiffs(supabaseData, chatworkRoomlist);
+
+  if (!fileDiffs.length || fileDiffs[0].diff === 0) {
+    await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n前回の統計からのファイル増加数が0のため、ランキングを生成できませんでした。`, roomId);
+    return;
+  }
+
+  const top8Diffs = fileDiffs.slice(0, 8);
+
+  let chatworkMessage = '[info][title]ファイル数ランキング[/title]';
+  top8Diffs.forEach((item, index) => {
+    chatworkMessage += `[download:1681682877]${index + 1}位[/download] ${item.name}\n(ID: ${item.room_id}) - ${item.diff}個。[hr]`;
+  });
+
+  await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${chatworkMessage}[hr]統計開始: ${supabaseData[0].day}、${supabaseData[0].time}時[/info]`, roomId);
+}
+
 // Webhookエンドポイント
 app.post('/webhook', async (req, res) => {
     try {
@@ -136,29 +368,23 @@ app.post('/webhook', async (req, res) => {
             return res.status(400).send('Invalid payload');
         }
 
-        // Webhookのペイロードから必要な情報を取得
         const body = webhookEvent.body;
         const accountId = webhookEvent.account_id;
         const roomId = webhookEvent.room_id;
         const messageId = webhookEvent.message_id;
         
-        // メッセージ本文が空か、必須パラメータが欠落しているか確認
         if (!body || !accountId || !roomId || !messageId) {
             console.error('Webhook event is missing required parameters (body, accountId, roomId, or messageId).');
             return res.status(400).send('Missing webhook parameters.');
         }
 
-        // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
         }
 
         // --- おみくじ コマンド ---
-        // 投稿されたメッセージが「おみくじ」という単語と完全に一致する場合にのみ反応
         if (body.trim() === 'おみくじ') {
             const today = new Date().toISOString().slice(0, 10);
-            
-            // Supabaseから本日のおみくじ履歴をチェック
             const { data, error } = await supabase
                 .from('fortune_logs')
                 .select('*')
@@ -180,7 +406,6 @@ app.post('/webhook', async (req, res) => {
             
             const result = fortunes[Math.floor(Math.random() * fortunes.length)];
             
-            // Supabaseにおみくじの結果を保存
             const { error: insertError } = await supabase
                 .from('fortune_logs')
                 .insert([{ account_id: accountId, date: today, fortune: result }]);
@@ -199,7 +424,7 @@ app.post('/webhook', async (req, res) => {
 
         // --- /ai コマンド ---
         if (body.startsWith('/ai')) {
-            const query = body.substring(4).trim(); // '/ai' の後のテキストを取得
+            const query = body.substring(4).trim();
             
             if (query.length === 0) {
                 const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n聞きたいことを入力してください。`;
@@ -213,7 +438,7 @@ app.post('/webhook', async (req, res) => {
         
         // --- /roominfo コマンド ---
         if (body.startsWith('/roominfo')) {
-            const targetRoomId = body.split(' ')[1]; // コマンドの後のルームIDを取得
+            const targetRoomId = body.split(' ')[1];
             if (!targetRoomId) {
                 const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nルームIDを指定してください。（例：/roominfo 123456789）`;
                 await sendchatwork(replyMessage, roomId);
@@ -235,6 +460,22 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
+        // --- /top, /topneo, /topfile, /stat, /saving コマンド ---
+        if (body.trim() === '/top' || body.trim() === '/topneo') {
+            await topNeo(body, null, messageId, roomId, accountId);
+            return res.status(200).send('Top command executed.');
+        }
+
+        if (body.trim() === '/topfile') {
+            await topFile(body, null, messageId, roomId, accountId);
+            return res.status(200).send('Top file command executed.');
+        }
+        
+        if (body.trim() === '/stat' || body.trim() === '/saving') {
+            await saving(body, null, messageId, roomId, accountId);
+            return res.status(200).send('Saving command executed.');
+        }
+
         // --- 削除 コマンド ---
         if (body.includes("削除")) {
             const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
@@ -243,7 +484,6 @@ app.post('/webhook', async (req, res) => {
             const currentMembers = currentMembersResponse.data;
             const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
 
-            // 管理者のみが削除コマンドを実行できるようにする
             if (!adminIds.includes(accountId)) {
                 const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nこのコマンドは管理者のみ実行できます。`;
                 await sendchatwork(replyMessage, roomId);
