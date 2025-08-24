@@ -14,6 +14,9 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const YUZUBOT_ACCOUNT_ID = process.env.YUZUBOT_ACCOUNT_ID;
 
+// ランキングから除外するルームIDのリスト
+const EXCLUDED_ROOMS = ['407802259', '407802259'];
+
 // Supabaseクライアントの初期化
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -42,7 +45,7 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID) {
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
-        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下で返答して下さい:" + message;
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下、markdown形式を使用しないで返答して下さい:" + message;
 
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
@@ -206,7 +209,10 @@ function calculateFileDiffs(supabaseData, chatworkRoomlist) {
 // メッセージランキングを表示する関数（Neo版）
 async function topNeo(body, message, messageId, roomId, accountId) {
   const supabaseData = await get();
-  const chatworkRoomlist = await getChatworkRoomlist();
+  let chatworkRoomlist = await getChatworkRoomlist();
+  
+  // 指定されたルームIDをフィルタリング
+  chatworkRoomlist = chatworkRoomlist.filter(room => !EXCLUDED_ROOMS.includes(room.room_id.toString()));
 
   if (!supabaseData || !chatworkRoomlist) {
     console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
@@ -234,7 +240,10 @@ async function topNeo(body, message, messageId, roomId, accountId) {
 // ファイルランキングを表示する関数
 async function topFile(body, message, messageId, roomId, accountId) {
   const supabaseData = await get();
-  const chatworkRoomlist = await getChatworkRoomlist();
+  let chatworkRoomlist = await getChatworkRoomlist();
+  
+  // 指定されたルームIDをフィルタリング
+  chatworkRoomlist = chatworkRoomlist.filter(room => !EXCLUDED_ROOMS.includes(room.room_id.toString()));
 
   if (!supabaseData || !chatworkRoomlist) {
     console.warn('SupabaseまたはChatWorkデータの取得に失敗しました。');
