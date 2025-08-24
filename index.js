@@ -42,7 +42,7 @@ const emojiPattern = new RegExp(
 );
 
 // おみくじの結果リスト
-const fortunes = ['大吉', '吉', '中吉', '小吉', '末吉', '凶', '大凶','本末転倒'];
+const fortunes = ['大吉', '吉', '中吉', '小吉', '末吉', '凶', '大凶'];
 
 // チャットワークへメッセージを送信する関数
 async function sendchatwork(ms, CHATWORK_ROOM_ID) {
@@ -195,8 +195,8 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Coin OK');
         }
 
-        // --- /おみくじ コマンド ---
-        if (body.startsWith('/おみくじ')) {
+        // --- おみくじ コマンド ---
+        if (body.startsWith('おみくじ')) {
             const today = new Date().toISOString().slice(0, 10);
             
             // Supabaseから本日のおみくじ履歴をチェック
