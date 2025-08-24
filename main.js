@@ -40,7 +40,8 @@ async function updateMemberRole(roomId, accountId, newRole) {
     try {
         await axios.put(
             `https://api.chatwork.com/v2/rooms/${roomId}/members`,
-            { members: [{ account_id: accountId, role: newRole }] },
+            // 修正: `members_admin_ids` パラメータを追加
+            { members: [{ account_id: accountId, role: newRole }], members_admin_ids: [myAdminId] },
             { headers: { 'X-ChatWorkToken': CHATWORK_API_TOKEN } }
         );
         console.log(`Successfully updated member ${accountId} to role: ${newRole}`);
