@@ -35,6 +35,25 @@ const emojiPattern = new RegExp(
   emojiList.map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g'
 );
 
+// チャットワークへメッセージを送信する関数 (提供された関数)
+async function sendchatwork(ms, CHATWORK_ROOM_ID) {
+    try {
+        await axios.post(
+            `https://api.chatwork.com/v2/rooms/${CHATWORK_ROOM_ID}/messages`,
+            new URLSearchParams({ body: ms }),
+            {
+                headers: {
+                    "X-ChatWorkToken": CHATWORK_API_TOKEN,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            }
+        );
+        console.log("メッセージ送信成功");
+    } catch (error) {
+        console.error("Chatworkへのメッセージ送信エラー:", error.response?.data || error.message);
+    }
+}
+
 // メンバーを閲覧のみに降格させる関数
 async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, messageId, senderAccountId) {
     try {
@@ -69,13 +88,11 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
 
         // 4. 成功メッセージを返信
         const fullReplyMessage = `[rp aid=${senderAccountId} to=${roomId}-${messageId}][pname:${senderAccountId}]さん、${replyMessageBody}`;
-        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
-        await axios.post(sendReplyUrl, { body: fullReplyMessage }, { headers });
+        await sendchatwork(fullReplyMessage, roomId);
 
         console.log(`Changed ${targetAccountId} to readonly.`);
     } catch (error) {
         if (error.response) {
-            // Chatwork APIからのエラーレスポンスを詳細にログ出力
             console.error(`Error in downgradeToReadonly: Request failed with status code ${error.response.status}`);
             console.error('Response data:', error.response.data);
             console.error('Response headers:', error.response.headers);
@@ -94,15 +111,15 @@ app.post('/webhook', async (req, res) => {
             return res.status(400).send('Invalid payload');
         }
 
-        // Webhookのペイロードから必要な情報を取得
         const body = webhookEvent.body;
         const accountId = webhookEvent.account_id;
         const roomId = webhookEvent.room_id;
         const messageId = webhookEvent.message_id;
-        const account = webhookEvent.account;
         
-        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
+        if (!body || !accountId || !roomId || !messageId) {
+            console.error('Webhook event is missing required parameters (body, accountId, roomId, or messageId).');
+            return res.status(400).send('Missing webhook parameters.');
+        }
 
         // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
@@ -113,18 +130,15 @@ app.post('/webhook', async (req, res) => {
         
         // /test コマンド
         if (body.startsWith('/test')) {
-            if (!accountId || !roomId || !messageId) {
-                console.error('Webhook event is missing required parameters for /test command.');
-                return res.status(400).send('Missing webhook parameters for test.');
-            }
             const now = new Date();
             const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
-            await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
+            await sendchatwork(replyMessage, roomId);
             return res.status(200).send('Test OK');
         }
 
         // 管理者IDを動的に取得
         const membersUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
+        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
         const currentMembersResponse = await axios.get(membersUrl, { headers });
         const currentMembers = currentMembersResponse.data;
         const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
@@ -135,11 +149,12 @@ app.post('/webhook', async (req, res) => {
                 return res.status(200).send('Unauthorized user for restart.');
             }
             if (!RESTART_WEBHOOK_URL) {
-                await axios.post(sendReplyUrl, { body: `[rp aid=${accountId}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
+                const replyMessage = `[rp aid=${accountId}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
+                await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('Restart URL not configured.');
             }
             const replyMessage = `[rp aid=${accountId}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
-            await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
+            await sendchatwork(replyMessage, roomId);
             await axios.post(RESTART_WEBHOOK_URL);
             return res.status(200).send('Restarting...');
         }
@@ -213,13 +228,12 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('OK');
         } else if (sameMessageCount >= 10) {
             const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、同じ内容の連続投稿はご遠慮ください。`;
-            await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
+            await sendchatwork(replyMessage, roomId);
             return res.status(200).send('OK');
         }
 
         res.status(200).send('OK');
     } catch (error) {
-        // Webhook処理全体でのエラーを詳細にログ出力
         if (error.response) {
             console.error(`Error handling webhook: Request failed with status code ${error.response.status}`);
             console.error('Response data:', error.response.data);
