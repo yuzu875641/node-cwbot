@@ -54,12 +54,11 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
         const newReadonlyIds = [...new Set([...readonlyIds, targetAccountId])];
 
         // 3. メンバーリストを更新
-        const updateParams = new URLSearchParams({
-            members_admin_ids: newAdminIds.join(','),
-            members_member_ids: newMemberIds.join(','),
-            members_readonly_ids: newReadonlyIds.join(',')
-        });
-
+        const updateParams = new URLSearchParams();
+        updateParams.append('members_admin_ids', newAdminIds.join(','));
+        updateParams.append('members_member_ids', newMemberIds.join(','));
+        updateParams.append('members_readonly_ids', newReadonlyIds.join(','));
+        
         await axios.put(membersUrl, updateParams.toString(), {
             headers: {
                 ...headers,
