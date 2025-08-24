@@ -15,7 +15,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const YUZUBOT_ACCOUNT_ID = process.env.YUZUBOT_ACCOUNT_ID;
 
 // ランキングから除外するルームIDのリスト
-const EXCLUDED_ROOMS = ['407802259', '407802259'];
+const EXCLUDED_ROOMS = ['407802259', '407755388'];
 
 // Supabaseクライアントの初期化
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
