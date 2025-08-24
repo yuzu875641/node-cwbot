@@ -64,14 +64,21 @@ const chatworkEmojis = [
 // ChatworkからのWebhookを受け取るエンドポイント
 app.post('/webhook', async (req, res) => {
     const event = req.body.webhook_event;
-    if (!event || !event.body) {
+    
+    if (!event) {
         return res.sendStatus(200);
     }
+    
+    const { body, account_id, room_id, message_id } = event;
+    
+    const accountId = account_id;
+    const roomId = room_id;
+    const messageId = message_id;
+    const messageBody = body ? body.trim() : '';
 
-    const accountId = event.account_id;
-    const roomId = event.room_id;
-    const messageId = event.message_id;
-    const messageBody = event.body.trim();
+    if (!messageBody) {
+        return res.sendStatus(200);
+    }
     
     // メッセージカウント機能
     const today = new Date().toISOString().slice(0, 10);
