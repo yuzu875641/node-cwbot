@@ -2,12 +2,18 @@ const express = require('express');
 const axios = require('axios');
 const app = express();
 const { URLSearchParams } = require('url');
+const { createClient } = require('@supabase/supabase-js');
 
 app.use(express.json());
 
-// 環境変数からChatwork APIトークンとRenderのDeploy Hook URLを取得
+// 環境変数から各種APIトークンとURLを取得
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
 const RESTART_WEBHOOK_URL = process.env.RESTART_WEBHOOK_URL;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
+// Supabaseクライアントの初期化
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // 投稿履歴を管理するグローバルオブジェクト（サーバーの再起動で消滅します）
 const messageHistory = {};
@@ -34,6 +40,9 @@ const emojiList = [
 const emojiPattern = new RegExp(
   emojiList.map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g'
 );
+
+// おみくじの結果リスト
+const fortunes = ['大吉', '吉', '中吉', '小吉', '末吉', '凶', '大凶','本末転倒'];
 
 // チャットワークへメッセージを送信する関数
 async function sendchatwork(ms, CHATWORK_ROOM_ID) {
@@ -104,6 +113,7 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
 
 // メッセージを削除する関数
 async function deleteMessages(body, roomId, accountId, messageId) {
+    // 削除対象のメッセージIDを正規表現で抽出
     const dlmessageIds = [...body.matchAll(/(?<=to=\d+-)(\d+)/g)].map(match => match[1]);
 
     if (dlmessageIds.length === 0) {
@@ -142,6 +152,7 @@ async function deleteMessages(body, roomId, accountId, messageId) {
 app.post('/webhook', async (req, res) => {
     try {
         const webhookEvent = req.body.webhook_event;
+        const botId = 1234567; // TODO: あなたのBotのChatwork IDに置き換えてください
 
         if (!webhookEvent) {
             return res.status(400).send('Invalid payload');
@@ -184,6 +195,50 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Coin OK');
         }
 
+        // --- /おみくじ コマンド ---
+        if (body.startsWith('/おみくじ')) {
+            const today = new Date().toISOString().slice(0, 10);
+            
+            // Supabaseから本日のおみくじ履歴をチェック
+            const { data, error } = await supabase
+                .from('fortune_logs')
+                .select('*')
+                .eq('account_id', accountId)
+                .eq('date', today);
+            
+            if (error) {
+                console.error('Supabase query error:', error);
+                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nおみくじの履歴取得中にエラーが発生しました。`;
+                await sendchatwork(errorMessage, roomId);
+                return res.status(500).send('Supabase Error');
+            }
+
+            if (data && data.length > 0) {
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじは既に引きました。明日また引けます。`;
+                await sendchatwork(replyMessage, roomId);
+                return res.status(200).send('Already pulled today.');
+            }
+            
+            const result = fortunes[Math.floor(Math.random() * fortunes.length)];
+            
+            // Supabaseにおみくじの結果を保存
+            const { error: insertError } = await supabase
+                .from('fortune_logs')
+                .insert([{ account_id: accountId, date: today, fortune: result }]);
+
+            if (insertError) {
+                console.error('Supabase insert error:', insertError);
+                const errorMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nおみくじの履歴保存中にエラーが発生しました。`;
+                await sendchatwork(errorMessage, roomId);
+                return res.status(500).send('Supabase Insert Error');
+            }
+            
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\n本日のおみくじの結果は「**${result}**」です。🎉`;
+            await sendchatwork(replyMessage, roomId);
+            return res.status(200).send('Fortune OK');
+        }
+
+
         // 管理者IDを動的に取得
         const membersUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         const currentMembersResponse = await axios.get(membersUrl, { headers });
@@ -209,7 +264,8 @@ app.post('/webhook', async (req, res) => {
         }
 
         // --- /削除 コマンド（管理者のみ） ---
-        if (body.startsWith('/削除')) {
+        const deleteCommandPattern = new RegExp(`\\[rp aid=${botId} to=${roomId}-${messageId}\\]\\[pname:${botId}\\]さん\\s*\\/削除`);
+        if (body.match(deleteCommandPattern)) {
             if (!adminIds.includes(accountId)) {
                 const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nこのコマンドは管理者のみ実行できます。`;
                 await sendchatwork(replyMessage, roomId);
@@ -226,11 +282,11 @@ app.post('/webhook', async (req, res) => {
                 return res.status(200).send('Unauthorized user for restart.');
             }
             if (!RESTART_WEBHOOK_URL) {
-                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nRender再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
+                const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nRender再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。`;
                 await sendchatwork(replyMessage, roomId);
                 return res.status(200).send('Restart URL not configured.');
             }
-            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、\nBotを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+            const replyMessage = `[rp aid=${accountId}][pname:${accountId}]さん、\nBotを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
             await sendchatwork(replyMessage, roomId);
             await axios.post(RESTART_WEBHOOK_URL);
             return res.status(200).send('Restarting...');
