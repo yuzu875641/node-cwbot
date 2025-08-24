@@ -94,51 +94,58 @@ app.post('/webhook', async (req, res) => {
             return res.status(400).send('Invalid payload');
         }
 
-        const { body, account_id, room_id, message_id, account } = webhookEvent;
-        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+        // Webhookのペイロードから必要な情報を取得
+        const body = webhookEvent.body;
+        const accountId = webhookEvent.account_id;
+        const roomId = webhookEvent.room_id;
+        const messageId = webhookEvent.message_id;
+        const account = webhookEvent.account;
         
+        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${roomId}/messages`;
+
         // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
         }
 
-        // --- /test コマンドの処理（最優先） ---
+        // --- コマンドの処理（最優先） ---
+        
+        // /test コマンド
         if (body.startsWith('/test')) {
-            if (!account_id || !room_id || !message_id) {
+            if (!accountId || !roomId || !messageId) {
                 console.error('Webhook event is missing required parameters for /test command.');
                 return res.status(400).send('Missing webhook parameters for test.');
             }
             const now = new Date();
-            const replyMessage = `[rp aid=${account_id} to=${room_id}-${message_id}][pname:${account_id}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
             await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
             return res.status(200).send('Test OK');
         }
 
         // 管理者IDを動的に取得
-        const membersUrl = `https://api.chatwork.com/v2/rooms/${room_id}/members`;
+        const membersUrl = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
         const currentMembersResponse = await axios.get(membersUrl, { headers });
         const currentMembers = currentMembersResponse.data;
         const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
 
-        // --- /restart コマンドの処理（管理者のみ） ---
+        // /restart コマンド（管理者のみ）
         if (body.startsWith('/restart')) {
-            if (!adminIds.includes(account_id)) {
+            if (!adminIds.includes(accountId)) {
                 return res.status(200).send('Unauthorized user for restart.');
             }
-            const replyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
             if (!RESTART_WEBHOOK_URL) {
-                await axios.post(replyUrl, { body: `[rp aid=${account_id}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
+                await axios.post(sendReplyUrl, { body: `[rp aid=${accountId}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
                 return res.status(200).send('Restart URL not configured.');
             }
-            const replyMessage = `[rp aid=${account_id}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
-            await axios.post(replyUrl, { body: replyMessage }, { headers });
+            const replyMessage = `[rp aid=${accountId}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+            await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
             await axios.post(RESTART_WEBHOOK_URL);
             return res.status(200).send('Restarting...');
         }
 
         // 送信者が管理者IDリストに含まれていれば、以降のルールチェックを無視
-        if (adminIds.includes(account_id)) {
+        if (adminIds.includes(accountId)) {
             return res.status(200).send('Ignoring admin user.');
         }
 
@@ -147,11 +154,11 @@ app.post('/webhook', async (req, res) => {
         // 1. [toall] 投稿チェック
         if (body.includes('[toall]')) {
             await downgradeToReadonly(
-                account_id,
-                room_id,
+                accountId,
+                roomId,
                 '全員宛ての投稿は管理目的のユーザーに限定されています。閲覧メンバーに変更しました。',
-                message_id,
-                account_id
+                messageId,
+                accountId
             );
             return res.status(200).send('OK');
         }
@@ -164,10 +171,10 @@ app.post('/webhook', async (req, res) => {
                 const targetAccountId = parseInt(match[1], 10);
                 await downgradeToReadonly(
                     targetAccountId,
-                    room_id,
+                    roomId,
                     `${targetAccountId}を閲覧メンバーにしました。`,
-                    message_id,
-                    account_id
+                    messageId,
+                    accountId
                 );
             }
             return res.status(200).send('OK');
@@ -178,35 +185,34 @@ app.post('/webhook', async (req, res) => {
         const emojiCount = matches ? matches.length : 0;
         if (emojiCount >= 15) {
             await downgradeToReadonly(
-                account_id,
-                room_id,
+                accountId,
+                roomId,
                 '投稿内の絵文字数が多すぎるため、閲覧メンバーに変更しました。',
-                message_id,
-                account_id
+                messageId,
+                accountId
             );
             return res.status(200).send('OK');
         }
 
         // 4. 連続投稿チェック
         const now = Date.now();
-        if (!messageHistory[account_id]) {
-            messageHistory[account_id] = [];
+        if (!messageHistory[accountId]) {
+            messageHistory[accountId] = [];
         }
-        messageHistory[account_id].push({ body, timestamp: now });
-        const sameMessageCount = messageHistory[account_id].filter(item => item.body === body).length;
+        messageHistory[accountId].push({ body, timestamp: now });
+        const sameMessageCount = messageHistory[accountId].filter(item => item.body === body).length;
         
         if (sameMessageCount >= 15) {
             await downgradeToReadonly(
-                account_id,
-                room_id,
+                accountId,
+                roomId,
                 '投稿回数が制限を超えました。閲覧メンバーに変更されました。',
-                message_id,
-                account_id
+                messageId,
+                accountId
             );
             return res.status(200).send('OK');
         } else if (sameMessageCount >= 10) {
-            const replyMessage = `[rp aid=${account_id} to=${room_id}-${message_id}][pname:${account_id}]さん、同じ内容の連続投稿はご遠慮ください。`;
-            const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+            const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん、同じ内容の連続投稿はご遠慮ください。`;
             await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
             return res.status(200).send('OK');
         }
