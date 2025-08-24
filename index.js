@@ -111,6 +111,22 @@ async function generateGemini(body, message, messageId, roomId, accountId) {
     }
 }
 
+// チャットワークのルーム情報を取得する関数
+async function getChatworkRoomInfo(roomId) {
+    const url = `https://api.chatwork.com/v2/rooms/${roomId}`;
+    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const response = await axios.get(url, { headers });
+    return response.data;
+}
+
+// チャットワークのルームメンバー数を取得する関数
+async function getChatworkRoomMemberCount(roomId) {
+    const url = `https://api.chatwork.com/v2/rooms/${roomId}/members`;
+    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const response = await axios.get(url, { headers });
+    return response.data.length;
+}
+
 // Webhookエンドポイント
 app.post('/webhook', async (req, res) => {
     try {
@@ -193,6 +209,30 @@ app.post('/webhook', async (req, res) => {
             
             await generateGemini(body, query, messageId, roomId, accountId);
             return res.status(200).send('AI command executed.');
+        }
+        
+        // --- /roominfo コマンド ---
+        if (body.startsWith('/roominfo')) {
+            const targetRoomId = body.split(' ')[1]; // コマンドの後のルームIDを取得
+            if (!targetRoomId) {
+                const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nルームIDを指定してください。（例：/roominfo 123456789）`;
+                await sendchatwork(replyMessage, roomId);
+                return res.status(200).send('No room ID provided.');
+            }
+
+            try {
+                const roomInfo = await getChatworkRoomInfo(targetRoomId);
+                const roomMemberCount = await getChatworkRoomMemberCount(targetRoomId);
+                
+                const room = `[info][title]${roomInfo.name}[/title]メンバー数: ${roomMemberCount}\nメッセージ数: ${roomInfo.message_num}\nファイル数: ${roomInfo.file_num}\nタスク数: ${roomInfo.task_num}\nアイコンURL: ${roomInfo.icon_path.replace(/rsz\./g, '')}[/info]`;
+                
+                await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${room}`, roomId);
+                return res.status(200).send('Room info command executed.');
+            } catch (error) {
+                console.error('Room info error:', error.response?.data || error.message);
+                await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。そのルームの情報はないみたい(´・ω・｀)`, roomId);
+                return res.status(500).send('Room info fetch error.');
+            }
         }
 
         // --- 削除 コマンド ---
