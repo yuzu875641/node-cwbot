@@ -1,13 +1,14 @@
 const {
     getChatworkRoomInfo,
     getChatworkRoomlist,
+    getChatworkRoomMemberCount,
     getRanking,
     sendchatwork,
     generateGemini,
     saving,
     topNeo,
     topFile,
-    updateRanking // ★ 追加
+    updateRanking
 } = require('./utils');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -194,6 +195,7 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
             await sendchatwork(responseMessage, roomId);
         }
     } catch (error) {
+        console.error('Failed to get room info:', error.response ? error.response.data : error.message);
         await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。ルーム情報の取得に失敗したみたい(´・ω・｀)`, roomId);
     }
 }
