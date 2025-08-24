@@ -5,9 +5,8 @@ const { URLSearchParams } = require('url');
 
 app.use(express.json());
 
-// 環境変数からChatwork APIトークンとRenderのDeploy Hook URLを取得
+// 環境変数からChatwork APIトークンを取得
 const CHATWORK_API_TOKEN = process.env.CHATWORK_API_TOKEN;
-const RESTART_WEBHOOK_URL = process.env.RESTART_WEBHOOK_URL;
 
 // 投稿履歴を管理するグローバルオブジェクト（サーバーの再起動で消滅します）
 const messageHistory = {};
@@ -74,7 +73,14 @@ async function downgradeToReadonly(targetAccountId, roomId, replyMessageBody, me
 
         console.log(`Changed ${targetAccountId} to readonly.`);
     } catch (error) {
-        console.error('Error in downgradeToReadonly:', error.message);
+        if (error.response) {
+            // Chatwork APIからのエラーレスポンスを詳細にログ出力
+            console.error(`Error in downgradeToReadonly: Request failed with status code ${error.response.status}`);
+            console.error('Response data:', error.response.data);
+            console.error('Response headers:', error.response.headers);
+        } else {
+            console.error('Error in downgradeToReadonly:', error.message);
+        }
     }
 }
 
@@ -196,7 +202,13 @@ app.post('/webhook', async (req, res) => {
 
         res.status(200).send('OK');
     } catch (error) {
-        console.error('Error handling webhook:', error.message);
+        // Webhook処理全体でのエラーを詳細にログ出力
+        if (error.response) {
+            console.error(`Error handling webhook: Request failed with status code ${error.response.status}`);
+            console.error('Response data:', error.response.data);
+        } else {
+            console.error('Error handling webhook:', error.message);
+        }
         res.status(500).send('Internal Server Error');
     }
 });
