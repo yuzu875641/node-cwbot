@@ -95,50 +95,50 @@ app.post('/webhook', async (req, res) => {
         }
 
         const { body, account_id, room_id, message_id, account } = webhookEvent;
-
+        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+        const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+        
         // Bot自身の投稿を無視
         if (body.startsWith('[rp aid=') || body.startsWith('[To:') || body.startsWith('[info]')) {
              return res.status(200).send('Ignoring bot message.');
         }
 
-        // --- 新しい /test コマンドの処理 ---
+        // --- /test コマンドの処理（最優先） ---
         if (body.startsWith('/test')) {
+            if (!account_id || !room_id || !message_id) {
+                console.error('Webhook event is missing required parameters for /test command.');
+                return res.status(400).send('Missing webhook parameters for test.');
+            }
             const now = new Date();
             const replyMessage = `[rp aid=${account_id} to=${room_id}-${message_id}][pname:${account_id}]Botは正常に稼働中です。✅\n最終稼働確認時刻: ${now.toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`;
-            const sendReplyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
-            const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
             await axios.post(sendReplyUrl, { body: replyMessage }, { headers });
             return res.status(200).send('Test OK');
         }
 
         // 管理者IDを動的に取得
         const membersUrl = `https://api.chatwork.com/v2/rooms/${room_id}/members`;
-        const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
         const currentMembersResponse = await axios.get(membersUrl, { headers });
         const currentMembers = currentMembersResponse.data;
         const adminIds = currentMembers.filter(m => m.role === 'admin').map(m => m.account_id);
 
-        // 送信者が管理者IDリストに含まれていれば無視
-        if (adminIds.includes(account_id)) {
-            // --- 管理者専用コマンドの処理 ---
-            if (body.startsWith('/restart')) {
-                const replyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
-                const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-
-                if (!RESTART_WEBHOOK_URL) {
-                    await axios.post(replyUrl, { body: `[rp aid=${account_id}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
-                    return res.status(200).send('Restart URL not configured.');
-                }
-                
-                // 再起動の通知メッセージを送信
-                const replyMessage = `[rp aid=${account_id}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
-                await axios.post(replyUrl, { body: replyMessage }, { headers });
-
-                // RenderのDeploy Hook URLにPOSTリクエストを送信して再起動をトリガー
-                await axios.post(RESTART_WEBHOOK_URL);
-                
-                return res.status(200).send('Restarting...');
+        // --- /restart コマンドの処理（管理者のみ） ---
+        if (body.startsWith('/restart')) {
+            if (!adminIds.includes(account_id)) {
+                return res.status(200).send('Unauthorized user for restart.');
             }
+            const replyUrl = `https://api.chatwork.com/v2/rooms/${room_id}/messages`;
+            if (!RESTART_WEBHOOK_URL) {
+                await axios.post(replyUrl, { body: `[rp aid=${account_id}] Render再起動用のURLが設定されていません。\nRenderのダッシュボードでDeploy Hookを作成し、環境変数RESTART_WEBHOOK_URLに設定してください。` }, { headers });
+                return res.status(200).send('Restart URL not configured.');
+            }
+            const replyMessage = `[rp aid=${account_id}] Botを再起動します。\nRenderが起動するまで、約60秒ほどかかります。`;
+            await axios.post(replyUrl, { body: replyMessage }, { headers });
+            await axios.post(RESTART_WEBHOOK_URL);
+            return res.status(200).send('Restarting...');
+        }
+
+        // 送信者が管理者IDリストに含まれていれば、以降のルールチェックを無視
+        if (adminIds.includes(account_id)) {
             return res.status(200).send('Ignoring admin user.');
         }
 
