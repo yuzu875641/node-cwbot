@@ -116,10 +116,6 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
         } else {
             // ルームIDが指定されない場合（すべての部屋）
             const roomList = await getChatworkRoomlist();
-            if (!roomList) {
-                await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。参加中のルームリストが取得できなかったみたい(´・ω・｀)`, roomId);
-                return;
-            }
             let responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n`;
             responseMessage += `[info][title]参加中の全ルーム情報[/title]\n`;
             roomList.forEach((room, index) => {
@@ -135,6 +131,33 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
     } catch (error) {
         console.error('Failed to get room info:', error.response ? error.response.data : error.message);
         await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。ルーム情報の取得に失敗したみたい(´・ω・｀)`, roomId);
+    }
+}
+
+// おみくじコマンドの処理
+async function handleOmikujiCommand(accountId, roomId, messageId) {
+    const result = getOmikujiResult();
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
+    await sendchatwork(replyMessage, roomId);
+}
+
+// 確率に基づいておみくじの結果を決定する関数
+function getOmikujiResult() {
+    const rand = Math.random();
+    if (rand < 0.001) {
+        return 'ゆず！';
+    } else if (rand < 0.001 + 0.109) {
+        return '凶';
+    } else if (rand < 0.001 + 0.109 + 0.19) {
+        return '末吉';
+    } else if (rand < 0.001 + 0.109 + 0.19 + 0.24) {
+        return '吉';
+    } else if (rand < 0.001 + 0.109 + 0.19 + 0.24 + 0.13) {
+        return '小吉';
+    } else if (rand < 0.001 + 0.109 + 0.19 + 0.24 + 0.13 + 0.10) {
+        return '中吉';
+    } else {
+        return '大吉';
     }
 }
 
@@ -175,11 +198,12 @@ async function handleCommand(body, accountId, roomId, messageId) {
         await handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId);
         return true;
     }
-
+    
     return false;
 }
 
 module.exports = {
     handleCommand,
     formatRanking,
+    handleOmikujiCommand,
 };
