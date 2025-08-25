@@ -8,16 +8,13 @@ const CHATWORK_API_BASE = 'https://api.chatwork.com/v2';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
 
-const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
+const EXCLUDED_ROOMS = ['407802259', '407766814', '407802259', '407755388'];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-// utils.js 内の修正
 
-
-
-async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = CHATWORK_API_TOKEN) {
+// Chatworkへメッセージを送信する関数
+async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = process.env.CHATWORK_API_TOKEN) {
     try {
         await axios.post(
             `${CHATWORK_API_BASE}/rooms/${CHATWORK_ROOM_ID}/messages`,
@@ -35,67 +32,10 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = CHATWORK_API_TOKEN)
     }
 }
 
-
-
-
-// チャットワークのルームメンバー数を取得する関数
-async function getChatworkRoomMemberCount(roomId) {
-    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
-    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
-    const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
-    
-    try {
-        const response = await axios.get(url, { headers: mainHeaders// チャットワークのルーム情報を取得する関数
-async function getChatworkRoomInfo(roomId) {
-    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
-    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
-    const url = `${CHATWORK_API_BASE}/rooms/${roomId}`;
-
-    if (!CHATWORK_API_TOKEN_SUB) {
-        try {
-            const response = await axios.get(url, { headers: mainHeaders });
-            return response.data;
-        } catch (error) {
-            console.error('Failed to get room info with main token:', error.response?.data || error.message);
-            return null;
-        }
-    }
-
-    try {
-        // ★ サブトークンで先に取得を試みる
-        const response = await axios.get(url, { headers: subHeaders });
-        console.log(`Successfully retrieved room info with sub token for room ${roomId}.`);
-        return response.data;
-    } catch (error) {
-        // ★ サブトークンで失敗した場合、メイントークンで再試行
-        console.warn(`Sub token failed to get room info for room ${roomId}. Retrying with main token.`);
-        try {
-            const mainResponse = await axios.get(url, { headers: mainHeaders });
-            return mainResponse.data;
-        } catch (mainError) {
-            console.error(`Main token also failed to get room info for room ${roomId}:`, mainError.response?.data || mainError.message);
-            return null;
-        }
-    }
-} });
-        return response.data.length;
-    } catch (error) {
-        try {
-            const subResponse = await axios.get(url, { headers: subHeaders });
-            return subResponse.data.length;
-        } catch (subError) {
-            console.error('Failed to get room member count with both tokens:', subError.response?.data || subError.message);
-            return null; // ★ 失敗した場合、nullを返す
-        }
-    }
-}
-
 // Geminiにメッセージを送信する関数
 async function generateGemini(body, message, messageId, roomId, accountId) {
     try {
-        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下、markdown形式の使用しないで返答して下さい:" + message;
+        message = "あなたはトークルーム「ゆずの部屋」のボットのゆずbotです。以下のメッセージに対して200字以下で返答して下さい:" + message;
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
@@ -115,41 +55,56 @@ async function generateGemini(body, message, messageId, roomId, accountId) {
 
 // チャットワークのルーム情報を取得する関数
 async function getChatworkRoomInfo(roomId) {
-    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB; // サブトークン
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
     const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
     const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
     const url = `${CHATWORK_API_BASE}/rooms/${roomId}`;
 
     if (!CHATWORK_API_TOKEN_SUB) {
-        console.warn('CHATWORK_API_TOKEN_SUB is not set. Using main token only.');
-        const response = await axios.get(url, { headers: mainHeaders });
-        return response.data;
+        try {
+            const response = await axios.get(url, { headers: mainHeaders });
+            return response.data;
+        } catch (error) {
+            console.error('Failed to get room info with main token:', error.response?.data || error.message);
+            return null;
+        }
     }
 
     try {
-        // ★ サブトークンで取得を試みる
         const response = await axios.get(url, { headers: subHeaders });
         console.log(`Successfully retrieved room info with sub token for room ${roomId}.`);
         return response.data;
     } catch (error) {
-        // ★ サブトークンで失敗した場合、メイントークンで再試行
         console.warn(`Sub token failed to get room info for room ${roomId}. Retrying with main token.`);
         try {
             const mainResponse = await axios.get(url, { headers: mainHeaders });
             return mainResponse.data;
         } catch (mainError) {
             console.error(`Main token also failed to get room info for room ${roomId}:`, mainError.response?.data || mainError.message);
-            throw new Error(`Failed to get room info with both tokens for room ${roomId}.`);
+            return null;
         }
     }
 }
 
 // チャットワークのルームメンバー数を取得する関数
 async function getChatworkRoomMemberCount(roomId) {
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
     const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
-    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const response = await axios.get(url, { headers });
-    return response.data.length;
+
+    try {
+        const response = await axios.get(url, { headers: mainHeaders });
+        return response.data.length;
+    } catch (error) {
+        try {
+            const subResponse = await axios.get(url, { headers: subHeaders });
+            return subResponse.data.length;
+        } catch (subError) {
+            console.error('Failed to get room member count with both tokens:', subError.response?.data || subError.message);
+            return null;
+        }
+    }
 }
 
 // チャットワークのルームリストを取得する関数
@@ -334,12 +289,26 @@ async function getRanking(roomId) {
 
 // ルームメンバー数を取得
 async function getChatworkRoomMemberCount(roomId) {
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
     const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
-    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const response = await axios.get(url, { headers });
-    return response.data.length;
+    
+    try {
+        const response = await axios.get(url, { headers: mainHeaders });
+        return response.data.length;
+    } catch (error) {
+        try {
+            const subResponse = await axios.get(url, { headers: subHeaders });
+            return subResponse.data.length;
+        } catch (subError) {
+            console.error('Failed to get room member count with both tokens:', subError.response?.data || subError.message);
+            return null;
+        }
+    }
 }
 
+// メンバーの権限を「閲覧」に変更する関数
 async function changeMemberRoleToReadonly(roomId, accountId) {
     try {
         const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
@@ -348,14 +317,15 @@ async function changeMemberRoleToReadonly(roomId, accountId) {
         const membersResponse = await axios.get(url, { headers });
         const members = membersResponse.data;
 
+        // パラメータ名を修正
         const newAdminMembers = members.filter(m => m.role === 'admin').map(m => m.account_id);
         const newMemberMembers = members.filter(m => m.role === 'member' && m.account_id !== accountId).map(m => m.account_id);
         const newReadonlyMembers = members.filter(m => m.role === 'readonly' || m.account_id === accountId).map(m => m.account_id);
 
         const params = new URLSearchParams({
-            'members_admin': newAdminMembers.join(','),
-            'members_member': newMemberMembers.join(','),
-            'members_readonly': newReadonlyMembers.join(',')
+            'members_admin_ids': newAdminMembers.join(','),
+            'members_member_ids': newMemberMembers.join(','),
+            'members_readonly_ids': newReadonlyMembers.join(',')
         });
 
         await axios.put(url, params, { headers });
@@ -366,7 +336,6 @@ async function changeMemberRoleToReadonly(roomId, accountId) {
         console.error('Failed to change member role:', error.response?.data || error.message);
     }
 }
-
 
 // ランキングデータをリセットする関数
 async function resetRankingData() {
@@ -380,6 +349,7 @@ async function resetRankingData() {
         console.error('Supabase ranking data reset error:', error);
     }
 }
+
 
 module.exports = {
     sendchatwork,
@@ -395,5 +365,6 @@ module.exports = {
     topFile,
     updateRanking,
     getRanking,
-    changeMemberRoleToReadonly
+    changeMemberRoleToReadonly,
+    resetRankingData,
 };
