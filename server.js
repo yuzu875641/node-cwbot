@@ -26,6 +26,15 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Command handled.');
         }
 
+        // 「わかめ」に反応する新しいロジック
+        if (body.trim() === 'わかめ') {
+            const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+            if (CHATWORK_API_TOKEN_SUB) {
+                await sendchatwork('いい意見だね(y)', room_id, CHATWORK_API_TOKEN_SUB);
+                return res.status(200).send('Wakame handled.');
+            }
+        }
+
         // 絵文字の数をカウントする
         let emojiCount = 0;
         EMOJI_LIST.forEach(emoji => {
