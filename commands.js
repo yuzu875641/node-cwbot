@@ -116,6 +116,10 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
         } else {
             // ルームIDが指定されない場合（すべての部屋）
             const roomList = await getChatworkRoomlist();
+            if (!roomList) {
+                await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。参加中のルームリストが取得できなかったみたい(´・ω・｀)`, roomId);
+                return;
+            }
             let responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n`;
             responseMessage += `[info][title]参加中の全ルーム情報[/title]\n`;
             roomList.forEach((room, index) => {
