@@ -13,22 +13,59 @@ const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
 const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-//メッセージを送信する関数
-async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = process.env.CHATWORK_API_TOKEN) {
+// utils.js 内の修正
+
+// チャットワークのルーム情報を取得する関数
+async function getChatworkRoomInfo(roomId) {
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
+    const url = `${CHATWORK_API_BASE}/rooms/${roomId}`;
+
+    if (!CHATWORK_API_TOKEN_SUB) {
+        try {
+            const response = await axios.get(url, { headers: mainHeaders });
+            return response.data;
+        } catch (error) {
+            console.error('Failed to get room info with main token:', error.response?.data || error.message);
+            return null; // ★ 失敗した場合、nullを返す
+        }
+    }
+
     try {
-        await axios.post(
-            `${CHATWORK_API_BASE}/rooms/${CHATWORK_ROOM_ID}/messages`,
-            new URLSearchParams({ body: ms }),
-            {
-                headers: {
-                    "X-ChatWorkToken": apiToken, 
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-            }
-        );
-        console.log("メッセージ送信成功");
+        const response = await axios.get(url, { headers: subHeaders });
+        console.log(`Successfully retrieved room info with sub token for room ${roomId}.`);
+        return response.data;
     } catch (error) {
-        console.error("Chatworkへのメッセージ送信エラー:", error.response?.data || error.message);
+        console.warn(`Sub token failed to get room info for room ${roomId}. Retrying with main token.`);
+        try {
+            const mainResponse = await axios.get(url, { headers: mainHeaders });
+            return mainResponse.data;
+        } catch (mainError) {
+            console.error(`Main token also failed to get room info for room ${roomId}:`, mainError.response?.data || mainError.message);
+            return null; // ★ 失敗した場合、nullを返す
+        }
+    }
+}
+
+// チャットワークのルームメンバー数を取得する関数
+async function getChatworkRoomMemberCount(roomId) {
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
+    const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
+    
+    try {
+        const response = await axios.get(url, { headers: mainHeaders });
+        return response.data.length;
+    } catch (error) {
+        try {
+            const subResponse = await axios.get(url, { headers: subHeaders });
+            return subResponse.data.length;
+        } catch (subError) {
+            console.error('Failed to get room member count with both tokens:', subError.response?.data || subError.message);
+            return null; // ★ 失敗した場合、nullを返す
+        }
     }
 }
 
