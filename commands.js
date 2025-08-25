@@ -32,7 +32,7 @@ async function formatRanking(ranking, accountId, roomId, messageId, roomName) {
             }
         } catch (error) {
             console.error(`Failed to get member info for account ${item.account_id}:`, error);
-            reply += `${index + 1}位 アカウントID: ${item.account_id} - ${item.count} コメント\n`;
+            reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
         }
         total += item.count;
     }
