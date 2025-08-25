@@ -8,6 +8,8 @@ const {
     updateRanking,
     getRanking,
     getChatworkRoomMemberCount,
+    checkOmikujiUsed,
+    saveOmikujiHistory,
 } = require('./utils');
 const YUZUBOT_ACCOUNT_ID = process.env.YUZUBOT_ACCOUNT_ID;
 
@@ -86,11 +88,11 @@ async function handleDeleteCommand(body, accountId, roomId, messageId) {
         const url = `https://api.chatwork.com/v2/rooms/${deleteRoomId}/messages/${deleteMessageId}`;
         await axios.delete(url, { headers: { 'Accept': 'application/json', 'x-chatworktoken': CHATWORK_API_TOKEN } });
 
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nメッセージID **${deleteMessageId}** を削除しました。`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}]さん\nメッセージID **${deleteMessageId}** を削除しました。`;
         await sendchatwork(replyMessage, roomId);
     } catch (err) {
         console.error(`メッセージID ${deleteMessageId} の削除中にエラーが発生しました:`, err.response ? err.response.data : err.message);
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nメッセージの削除に失敗しました。`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}]さん\nメッセージの削除に失敗しました。`;
         await sendchatwork(replyMessage, roomId);
     }
 }
@@ -136,16 +138,15 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
 
 // おみくじコマンドの処理
 async function handleOmikujiCommand(accountId, roomId, messageId) {
-    // 本日のおみくじがすでに引かれているかチェック
     const alreadyUsed = await checkOmikujiUsed(roomId);
     if (alreadyUsed) {
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)！`;
         await sendchatwork(replyMessage, roomId);
         return;
     }
 
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}！`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
     await sendchatwork(replyMessage, roomId);
 
     await saveOmikujiHistory(roomId);
@@ -155,7 +156,7 @@ async function handleOmikujiCommand(accountId, roomId, messageId) {
 function getOmikujiResult() {
     const rand = Math.random();
     if (rand < 0.001) {
-        return 'ゆず';
+        return 'ゆず！';
     } else if (rand < 0.001 + 0.109) {
         return '凶';
     } else if (rand < 0.001 + 0.109 + 0.19) {
@@ -216,4 +217,4 @@ module.exports = {
     handleCommand,
     formatRanking,
     handleOmikujiCommand,
-};
+}
