@@ -136,16 +136,26 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
 
 // おみくじコマンドの処理
 async function handleOmikujiCommand(accountId, roomId, messageId) {
+    // 本日のおみくじがすでに引かれているかチェック
+    const alreadyUsed = await checkOmikujiUsed(roomId);
+    if (alreadyUsed) {
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)`;
+        await sendchatwork(replyMessage, roomId);
+        return;
+    }
+
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}！`;
     await sendchatwork(replyMessage, roomId);
+
+    await saveOmikujiHistory(roomId);
 }
 
 // 確率に基づいておみくじの結果を決定する関数
 function getOmikujiResult() {
     const rand = Math.random();
     if (rand < 0.001) {
-        return 'ゆず！';
+        return 'ゆず';
     } else if (rand < 0.001 + 0.109) {
         return '凶';
     } else if (rand < 0.001 + 0.109 + 0.19) {
