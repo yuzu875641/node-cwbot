@@ -9,7 +9,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-const EXCLUDED_ROOMS = ['407802259', '407766814', '407802259', '407755388'];
+const EXCLUDED_ROOMS = ['407802259'];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -49,7 +49,7 @@ async function generateGemini(body, message, messageId, roomId, accountId) {
         await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nゆずbotです。\n${responseParts}`, roomId);
     } catch (error) {
         console.error('エラーが発生しました:', error.response ? error.response.data : error.message);
-        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nエラーが発生しました。`, roomId);
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}]さん\nエラーが発生しました。`, roomId);
     }
 }
 
@@ -288,13 +288,14 @@ async function getRanking(roomId) {
 }
 
 // おみくじ履歴をチェックする関数
-async function checkOmikujiUsed(roomId) {
+async function checkOmikujiUsed(roomId, accountId) {
     const today = DateTime.now().setZone('Asia/Tokyo').toFormat('yyyy-MM-dd');
     try {
         const { data, error } = await supabase
             .from('omikuji_history')
             .select('*')
             .eq('room_id', roomId)
+            .eq('account_id', accountId)
             .eq('date', today);
         if (error) throw error;
         return data.length > 0;
@@ -305,14 +306,14 @@ async function checkOmikujiUsed(roomId) {
 }
 
 // おみくじ履歴を保存する関数
-async function saveOmikujiHistory(roomId) {
+async function saveOmikujiHistory(roomId, accountId) {
     const today = DateTime.now().setZone('Asia/Tokyo').toFormat('yyyy-MM-dd');
     try {
         const { error } = await supabase
             .from('omikuji_history')
-            .insert([{ room_id: roomId, date: today }]);
+            .insert([{ room_id: roomId, account_id: accountId, date: today }]);
         if (error) throw error;
-        console.log(`Omikuji history saved for room ${roomId} on ${today}.`);
+        console.log(`Omikuji history saved for account ${accountId} in room ${roomId} on ${today}.`);
     } catch (error) {
         console.error('Failed to save omikuji history:', error.message);
     }
