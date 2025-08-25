@@ -10,6 +10,7 @@ const {
     getChatworkRoomMemberCount,
     checkOmikujiUsed,
     saveOmikujiHistory,
+    get, // 追加
 } = require('./utils');
 const YUZUBOT_ACCOUNT_ID = process.env.YUZUBOT_ACCOUNT_ID;
 
@@ -28,7 +29,6 @@ async function formatRanking(ranking, accountId, roomId, messageId, roomName) {
             if (memberInfo) {
                 reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             } else {
-                // piconnameが使えない場合、代わりにテキストで表示
                 reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             }
         } catch (error) {
@@ -119,7 +119,7 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
         } else {
             // ルームIDが指定されない場合（すべての部屋）
             const roomList = await getChatworkRoomlist();
-            let responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n部屋を指定してください`;
+            let responseMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n部屋指定して(⁠´⁠；⁠ω⁠；⁠｀⁠)`;
             await sendchatwork(responseMessage, roomId);
         }
     } catch (error) {
@@ -132,13 +132,13 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
 async function handleOmikujiCommand(accountId, roomId, messageId) {
     const alreadyUsed = await checkOmikujiUsed(roomId, accountId);
     if (alreadyUsed) {
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)！`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n本日引けるおみくじはもう終了だよ(´・ω・｀)`;
         await sendchatwork(replyMessage, roomId);
         return;
     }
 
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
     await sendchatwork(replyMessage, roomId);
 
     await saveOmikujiHistory(roomId, accountId);
@@ -164,6 +164,27 @@ function getOmikujiResult() {
     }
 }
 
+// /statコマンドの処理
+async function handleStatCommand(accountId, roomId, messageId) {
+    try {
+        const supabaseData = await get();
+        if (!supabaseData || supabaseData.length === 0) {
+            await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね。まだ統計データがないみたい(´・ω・｀)`, roomId);
+            return;
+        }
+
+        const data = supabaseData[0];
+        const lastUpdated = `${data.day} ${data.time}時`;
+        const roomCount = data.list.length;
+
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n現在の統計情報です。\n最終更新日時: ${lastUpdated}\n対象ルーム数: ${roomCount}部屋`;
+        await sendchatwork(replyMessage, roomId);
+    } catch (error) {
+        console.error('Error in stat command:', error.response ? error.response.data : error.message);
+        await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめん。統計情報の取得に失敗したみたい(´・ω・｀)`, roomId);
+    }
+}
+
 // コマンドを処理するメイン関数
 async function handleCommand(body, accountId, roomId, messageId) {
     const trimmedBody = body.trim();
@@ -186,6 +207,12 @@ async function handleCommand(body, accountId, roomId, messageId) {
         const parts = trimmedBody.split(' ');
         const targetRoomId = parts[1];
         await handleRankingReportCommand(targetRoomId || roomId, accountId, roomId, messageId);
+        return true;
+    }
+    
+    // /statコマンドの追加
+    if (trimmedBody === '/stat') {
+        await handleStatCommand(accountId, roomId, messageId);
         return true;
     }
 
