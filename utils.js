@@ -56,22 +56,29 @@ async function generateGemini(body, message, messageId, roomId, accountId) {
 // チャットワークのルーム情報を取得する関数
 async function getChatworkRoomInfo(roomId) {
     const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB; // サブトークン
-    const headers = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
     const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
     const url = `${CHATWORK_API_BASE}/rooms/${roomId}`;
 
+    if (!CHATWORK_API_TOKEN_SUB) {
+        console.warn('CHATWORK_API_TOKEN_SUB is not set. Using main token only.');
+        const response = await axios.get(url, { headers: mainHeaders });
+        return response.data;
+    }
+
     try {
-        // メイントークンで取得を試みる
-        const response = await axios.get(url, { headers });
+        // ★ サブトークンで取得を試みる
+        const response = await axios.get(url, { headers: subHeaders });
+        console.log(`Successfully retrieved room info with sub token for room ${roomId}.`);
         return response.data;
     } catch (error) {
-        // メイントークンで失敗した場合、サブトークンで再試行
-        console.warn(`Main token failed to get room info for room ${roomId}. Retrying with sub token.`);
+        // ★ サブトークンで失敗した場合、メイントークンで再試行
+        console.warn(`Sub token failed to get room info for room ${roomId}. Retrying with main token.`);
         try {
-            const subResponse = await axios.get(url, { headers: subHeaders });
-            return subResponse.data;
-        } catch (subError) {
-            console.error(`Sub token also failed to get room info for room ${roomId}:`, subError.response?.data || subError.message);
+            const mainResponse = await axios.get(url, { headers: mainHeaders });
+            return mainResponse.data;
+        } catch (mainError) {
+            console.error(`Main token also failed to get room info for room ${roomId}:`, mainError.response?.data || mainError.message);
             throw new Error(`Failed to get room info with both tokens for room ${roomId}.`);
         }
     }
