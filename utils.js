@@ -15,6 +15,27 @@ const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 // utils.js 内の修正
 
+
+
+async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = CHATWORK_API_TOKEN) {
+    try {
+        await axios.post(
+            `${CHATWORK_API_BASE}/rooms/${CHATWORK_ROOM_ID}/messages`,
+            new URLSearchParams({ body: ms }),
+            {
+                headers: {
+                    "X-ChatWorkToken": apiToken,
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            }
+        );
+        console.log("メッセージ送信成功");
+    } catch (error) {
+        console.error("Chatworkへのメッセージ送信エラー:", error.response?.data || error.message);
+    }
+}
+
+
 // チャットワークのルーム情報を取得する関数
 async function getChatworkRoomInfo(roomId) {
     const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
