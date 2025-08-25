@@ -28,7 +28,7 @@ async function formatRanking(ranking, accountId, roomId, messageId, roomName) {
             if (memberInfo) {
                 reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             } else {
-                reply += `${index + 1}位 アカウントID: ${item.account_id} - ${item.count} コメント\n`;
+                reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             }
         } catch (error) {
             console.error(`Failed to get member info for account ${item.account_id}:`, error);
