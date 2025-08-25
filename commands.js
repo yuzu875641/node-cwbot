@@ -170,6 +170,7 @@ async function handleFortuneCommand(accountId, roomId, messageId) {
     await sendchatwork(replyMessage, roomId);
 }
 
+//一部が欠けていたらnullで返すように
 // /roominfo コマンドの処理
 async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId) {
     try {
@@ -177,7 +178,16 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
             // ルームIDが指定された場合
             const roomInfo = await getChatworkRoomInfo(targetRoomId);
             const roomMemberCount = await getChatworkRoomMemberCount(targetRoomId);
-            const room = `[info][title]${roomInfo.name}[/title]メンバー数: ${roomMemberCount}\nメッセージ数: ${roomInfo.message_num}\nファイル数: ${roomInfo.file_num}\nタスク数: ${roomInfo.task_num}\nアイコンURL: ${roomInfo.icon_path.replace(/rsz\./g, '')}[/info]`;
+            
+            // 取得できなかった項目を「Error」に置き換える
+            const roomName = roomInfo ? roomInfo.name : 'Error';
+            const memberCount = roomMemberCount !== null ? roomMemberCount : 'Error';
+            const messageNum = roomInfo ? roomInfo.message_num : 'Error';
+            const fileNum = roomInfo ? roomInfo.file_num : 'Error';
+            const taskNum = roomInfo ? roomInfo.task_num : 'Error';
+            const iconPath = roomInfo ? roomInfo.icon_path.replace(/rsz\./g, '') : 'Error';
+
+            const room = `[info][title]${roomName}[/title]メンバー数: ${memberCount}\nメッセージ数: ${messageNum}\nファイル数: ${fileNum}\nタスク数: ${taskNum}\nアイコンURL: ${iconPath}[/info]`;
             await sendchatwork(`[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${room}`, roomId);
         } else {
             // ルームIDが指定されない場合（すべての部屋）
