@@ -287,26 +287,37 @@ async function getRanking(roomId) {
     return data;
 }
 
-// ルームメンバー数を取得
-async function getChatworkRoomMemberCount(roomId) {
-    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
-    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
-    const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
-    
+// おみくじ履歴をチェックする関数
+async function checkOmikujiUsed(roomId) {
+    const today = DateTime.now().setZone('Asia/Tokyo').toFormat('yyyy-MM-dd');
     try {
-        const response = await axios.get(url, { headers: mainHeaders });
-        return response.data.length;
+        const { data, error } = await supabase
+            .from('omikuji_history')
+            .select('*')
+            .eq('room_id', roomId)
+            .eq('date', today);
+        if (error) throw error;
+        return data.length > 0;
     } catch (error) {
-        try {
-            const subResponse = await axios.get(url, { headers: subHeaders });
-            return subResponse.data.length;
-        } catch (subError) {
-            console.error('Failed to get room member count with both tokens:', subError.response?.data || subError.message);
-            return null;
-        }
+        console.error('Failed to check omikuji history:', error.message);
+        return false;
     }
 }
+
+// おみくじ履歴を保存する関数
+async function saveOmikujiHistory(roomId) {
+    const today = DateTime.now().setZone('Asia/Tokyo').toFormat('yyyy-MM-dd');
+    try {
+        const { error } = await supabase
+            .from('omikuji_history')
+            .insert([{ room_id: roomId, date: today }]);
+        if (error) throw error;
+        console.log(`Omikuji history saved for room ${roomId} on ${today}.`);
+    } catch (error) {
+        console.error('Failed to save omikuji history:', error.message);
+    }
+}
+
 
 // メンバーの権限を「閲覧」に変更する関数
 async function changeMemberRoleToReadonly(roomId, accountId) {
@@ -365,6 +376,8 @@ module.exports = {
     topFile,
     updateRanking,
     getRanking,
+    checkOmikujiUsed,
+    saveOmikujiHistory,
     changeMemberRoleToReadonly,
     resetRankingData,
 };
