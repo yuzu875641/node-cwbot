@@ -35,6 +35,12 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
+        // 「おみくじ」に反応するロジック
+　　　　　if (body.trim() === 'おみくじ') {
+  　　　　　　　  await handleOmikujiCommand(account_id, room_id, message_id);
+   　　　　　　　 return res.status(200).send('Omikuji handled.');
+　　　　　}
+
         // 絵文字の数をカウントする
         let emojiCount = 0;
         EMOJI_LIST.forEach(emoji => {
