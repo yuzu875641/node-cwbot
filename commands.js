@@ -140,13 +140,13 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
 async function handleOmikujiCommand(accountId, roomId, messageId) {
     const alreadyUsed = await checkOmikujiUsed(roomId);
     if (alreadyUsed) {
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)！`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n本日引けるおみくじは終了だよ(´・ω・｀)`;
         await sendchatwork(replyMessage, roomId);
         return;
     }
 
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}`;
     await sendchatwork(replyMessage, roomId);
 
     await saveOmikujiHistory(roomId);
