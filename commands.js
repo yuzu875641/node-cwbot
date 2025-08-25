@@ -28,11 +28,12 @@ async function formatRanking(ranking, accountId, roomId, messageId, roomName) {
             if (memberInfo) {
                 reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             } else {
+                // piconnameが使えない場合、代わりにテキストで表示
                 reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
             }
         } catch (error) {
             console.error(`Failed to get member info for account ${item.account_id}:`, error);
-            reply += `${index + 1}位 [piconname:${item.account_id}] - ${item.count} コメント\n`;
+            reply += `${index + 1}位 アカウントID: ${item.account_id} - ${item.count} コメント\n`;
         }
         total += item.count;
     }
@@ -138,18 +139,18 @@ async function handleRoomInfoCommand(targetRoomId, accountId, roomId, messageId)
 
 // おみくじコマンドの処理
 async function handleOmikujiCommand(accountId, roomId, messageId) {
-    const alreadyUsed = await checkOmikujiUsed(roomId);
+    const alreadyUsed = await checkOmikujiUsed(roomId, accountId);
     if (alreadyUsed) {
-        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n本日引けるおみくじは終了だよ(´・ω・｀)`;
+        const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nごめんね、この部屋で本日引けるおみくじはもう終了だよ(´・ω・｀)！`;
         await sendchatwork(replyMessage, roomId);
         return;
     }
 
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
     await sendchatwork(replyMessage, roomId);
 
-    await saveOmikujiHistory(roomId);
+    await saveOmikujiHistory(roomId, accountId);
 }
 
 // 確率に基づいておみくじの結果を決定する関数
@@ -217,4 +218,4 @@ module.exports = {
     handleCommand,
     formatRanking,
     handleOmikujiCommand,
-}
+};
