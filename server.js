@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 require('dotenv').config();
 
-const { handleCommand } = require('./commands');
+const { handleCommand, handleOmikujiCommand } = require('./commands');
 const { updateRanking, changeMemberRoleToReadonly, sendchatwork } = require('./utils');
 
 app.use(express.json());
@@ -26,6 +26,12 @@ app.post('/webhook', async (req, res) => {
             return res.status(200).send('Command handled.');
         }
 
+        // 「おみくじ」に反応する新しいロジック
+        if (body.trim() === 'おみくじ') {
+            await handleOmikujiCommand(account_id, room_id, message_id);
+            return res.status(200).send('Omikuji handled.');
+        }
+
         // 「わかめ」に反応する新しいロジック
         if (body.trim() === 'わかめ') {
             const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
@@ -34,12 +40,6 @@ app.post('/webhook', async (req, res) => {
                 return res.status(200).send('Wakame handled.');
             }
         }
-
-        // 「おみくじ」に反応するロジック
-　　　　　if (body.trim() === 'おみくじ') {
-  　　　　　　　  await handleOmikujiCommand(account_id, room_id, message_id);
-   　　　　　　　 return res.status(200).send('Omikuji handled.');
-　　　　　}
 
         // 絵文字の数をカウントする
         let emojiCount = 0;
