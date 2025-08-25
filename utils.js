@@ -284,6 +284,20 @@ async function changeMemberRoleToReadonly(roomId, accountId) {
     }
 }
 
+
+// ランキングデータをリセットする関数
+async function resetRankingData() {
+    try {
+        const { error } = await supabase
+            .from('ranking_data')
+            .delete()
+            .neq('id', 0); // 全レコードを削除
+        if (error) throw error;
+    } catch (error) {
+        console.error('Supabase ranking data reset error:', error);
+    }
+}
+
 module.exports = {
     sendchatwork,
     generateGemini,
