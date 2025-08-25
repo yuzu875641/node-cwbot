@@ -13,16 +13,15 @@ const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
 const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Chatworkへメッセージを送信する関数
-async function sendchatwork(ms, CHATWORK_ROOM_ID) {
+//メッセージを送信する関数
+async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = process.env.CHATWORK_API_TOKEN) {
     try {
         await axios.post(
             `${CHATWORK_API_BASE}/rooms/${CHATWORK_ROOM_ID}/messages`,
             new URLSearchParams({ body: ms }),
             {
                 headers: {
-                    "X-ChatWorkToken": CHATWORK_API_TOKEN,
+                    "X-ChatWorkToken": apiToken, 
                     "Content-Type": "application/x-www-form-urlencoded",
                 },
             }
