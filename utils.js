@@ -8,6 +8,7 @@ const CHATWORK_API_BASE = 'https://api.chatwork.com/v2';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
 
 const EXCLUDED_ROOMS = ['407802259', '407766814', '394676959', '407755388'];
 
