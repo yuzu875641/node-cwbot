@@ -36,7 +36,17 @@ async function sendchatwork(ms, CHATWORK_ROOM_ID, apiToken = CHATWORK_API_TOKEN)
 }
 
 
-// チャットワークのルーム情報を取得する関数
+
+
+// チャットワークのルームメンバー数を取得する関数
+async function getChatworkRoomMemberCount(roomId) {
+    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
+    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
+    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
+    const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
+    
+    try {
+        const response = await axios.get(url, { headers: mainHeaders// チャットワークのルーム情報を取得する関数
 async function getChatworkRoomInfo(roomId) {
     const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
     const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
@@ -49,35 +59,27 @@ async function getChatworkRoomInfo(roomId) {
             return response.data;
         } catch (error) {
             console.error('Failed to get room info with main token:', error.response?.data || error.message);
-            return null; // ★ 失敗した場合、nullを返す
+            return null;
         }
     }
 
     try {
+        // ★ サブトークンで先に取得を試みる
         const response = await axios.get(url, { headers: subHeaders });
         console.log(`Successfully retrieved room info with sub token for room ${roomId}.`);
         return response.data;
     } catch (error) {
+        // ★ サブトークンで失敗した場合、メイントークンで再試行
         console.warn(`Sub token failed to get room info for room ${roomId}. Retrying with main token.`);
         try {
             const mainResponse = await axios.get(url, { headers: mainHeaders });
             return mainResponse.data;
         } catch (mainError) {
             console.error(`Main token also failed to get room info for room ${roomId}:`, mainError.response?.data || mainError.message);
-            return null; // ★ 失敗した場合、nullを返す
+            return null;
         }
     }
-}
-
-// チャットワークのルームメンバー数を取得する関数
-async function getChatworkRoomMemberCount(roomId) {
-    const CHATWORK_API_TOKEN_SUB = process.env.CHATWORK_API_TOKEN_SUB;
-    const mainHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN };
-    const subHeaders = { 'X-ChatWorkToken': CHATWORK_API_TOKEN_SUB };
-    const url = `${CHATWORK_API_BASE}/rooms/${roomId}/members`;
-    
-    try {
-        const response = await axios.get(url, { headers: mainHeaders });
+} });
         return response.data.length;
     } catch (error) {
         try {
