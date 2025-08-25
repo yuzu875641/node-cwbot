@@ -147,7 +147,7 @@ async function handleOmikujiCommand(accountId, roomId, messageId) {
     }
 
     const result = getOmikujiResult();
-    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\nあなたのおみくじの結果は...**${result}**でした！`;
+    const replyMessage = `[rp aid=${accountId} to=${roomId}-${messageId}][pname:${accountId}]さん\n${result}`;
     await sendchatwork(replyMessage, roomId);
 
     await saveOmikujiHistory(roomId, accountId);
