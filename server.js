@@ -41,6 +41,12 @@ app.post('/webhook', async (req, res) => {
             }
         }
 
+        // 削除コマンドの処理
+    　　if (body.includes("削除")) {
+   　  　　　　　 await chatwork.deleteMessages(body, body, messageId, roomId, accountId);
+  　　　　　　    return res.sendStatus(200);
+  　　  }
+        
         // 絵文字の数をカウントする
         let emojiCount = 0;
         EMOJI_LIST.forEach(emoji => {
