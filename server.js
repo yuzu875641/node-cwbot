@@ -2,7 +2,6 @@ const express = require('express');
 const app = express();
 require('dotenv').config();
 
-const chatwork = require('./chatwork');
 
 const { handleCommand, handleOmikujiCommand } = require('./commands');
 const { updateRanking, changeMemberRoleToReadonly, sendchatwork } = require('./utils');
